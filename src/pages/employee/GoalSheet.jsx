@@ -5,7 +5,7 @@ import { goalsService, auditService } from '../../lib/services';
 import StatusBadge from '../../components/shared/StatusBadge';
 import {
   Plus, Trash2, Save, Send, Lock, AlertTriangle, CheckCircle2,
-  ChevronDown, ChevronUp, Share2, Info, Loader2
+  ChevronDown, ChevronUp, Share2, Info, Loader2, Zap
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -66,7 +66,10 @@ export default function GoalSheet() {
     loadGoals();
   }, [currentUser]);
 
-  const isLocked = goals.length > 0 && goals.every((g) => g.status === GOAL_STATUS.APPROVED);
+  // The sheet only stops allowing new goals if the maximum count is reached.
+  const isLocked = goals.length >= MAX_GOALS;
+  
+  // Total weightage tracking
   const totalWeightage = goals.reduce((s, g) => s + Number(g.weightage || 0), 0);
   const remaining = 100 - totalWeightage;
 
@@ -168,12 +171,26 @@ export default function GoalSheet() {
             FY2026 Performance Cycle <span className="text-slate-600 mx-2">|</span> {goals.length}/{MAX_GOALS} Goals
           </p>
         </div>
-        {isLocked && (
-          <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm font-semibold shadow-[0_0_15px_rgba(52,211,153,0.15)]">
-            <Lock className="h-4 w-4" />
-            Goals Approved & Locked
-          </div>
-        )}
+        <div className="flex items-center gap-3">
+          {(!import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL.includes('your-project-id')) && (
+            <button
+              onClick={() => {
+                setGoals(prev => prev.map(g => ({ ...g, status: 'draft' })));
+                setErrors({});
+              }}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-600 text-sm font-bold hover:bg-amber-500/20 transition-all"
+            >
+              <Zap className="h-4 w-4" />
+              Demo: Unlock Goals
+            </button>
+          )}
+          {goals.length > 0 && goals.every(g => g.status === 'approved') && goals.length >= MAX_GOALS && (
+            <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm font-semibold shadow-[0_0_15px_rgba(52,211,153,0.15)]">
+              <Lock className="h-4 w-4" />
+              Goals Approved & Locked
+            </div>
+          )}
+        </div>
       </motion.div>
 
       {/* Weightage Counter */}
@@ -348,7 +365,7 @@ export default function GoalSheet() {
                         className={cn('input w-full', errors[`${idx}_weight`] && 'border-[#ff4081]')}
                         value={goal.weightage}
                         onChange={(e) => updateGoalField(idx, 'weightage', e.target.value)}
-                        disabled={isLocked}
+                        disabled={goal.status === GOAL_STATUS.APPROVED}
                       />
                       <span className="text-base font-extrabold text-primary-600 w-8">%</span>
                     </div>
