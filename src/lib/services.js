@@ -1,11 +1,35 @@
 import { supabase } from './supabase';
 
-// Mock Data for Demo Fallback
-const MOCK_GOALS = [
-  { id: '1', title: 'Improve System Uptime', status: 'approved', thrust_area: 'Infrastructure', weightage: 30, target: '99.9%', employee_id: 'demo-emp-1' },
-  { id: '2', title: 'Reduce Latency by 20%', status: 'submitted', thrust_area: 'Performance', weightage: 40, target: '< 100ms', employee_id: 'demo-emp-1' },
-  { id: '3', title: 'Security Audit Compliance', status: 'draft', thrust_area: 'Security', weightage: 30, target: '100% Pass', employee_id: 'demo-emp-1' },
-];
+// --- Mock Database Helper (LocalStorage Persistence) ---
+const MOCK_DB_KEY = 'performx_mock_db';
+
+const getMockDb = () => {
+  const stored = localStorage.getItem(MOCK_DB_KEY);
+  if (stored) return JSON.parse(stored);
+  
+  // Initial Seed Data
+  const initial = {
+    goals: [
+      { id: '1', title: 'Improve System Uptime', status: 'approved', thrust_area: 'Infrastructure', weightage: 30, target: '99.9%', employee_id: 'demo-emp-1' },
+      { id: '2', title: 'Reduce Latency by 20%', status: 'submitted', thrust_area: 'Performance', weightage: 40, target: '< 100ms', employee_id: 'demo-emp-1' },
+      { id: '3', title: 'Security Audit Compliance', status: 'draft', thrust_area: 'Security', weightage: 30, target: '100% Pass', employee_id: 'demo-emp-1' },
+    ],
+    profiles: [
+      { id: 'demo-emp-1', name: 'Harshi Sharma', role: 'employee', status: 'active', department: 'Operations' },
+      { id: 'demo-mgr-1', name: 'Janhvi Singh', role: 'manager', status: 'active', department: 'Operations' }
+    ],
+    audit_logs: [
+      { id: '1', action: 'SYSTEM_INIT', actor: 'System', timestamp: new Date().toISOString() }
+    ],
+    check_ins: []
+  };
+  localStorage.setItem(MOCK_DB_KEY, JSON.stringify(initial));
+  return initial;
+};
+
+const saveMockDb = (data) => {
+  localStorage.setItem(MOCK_DB_KEY, JSON.stringify(data));
+};
 
 const isDemo = () => {
   return !import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL === 'https://your-project-id.supabase.co';
@@ -15,9 +39,11 @@ const isDemo = () => {
  * GOALS SERVICE
  */
 export const goalsService = {
-  // Fetch all goals for a specific employee
   async getEmployeeGoals(employeeId) {
-    if (isDemo()) return MOCK_GOALS.filter(g => g.employee_id === employeeId || employeeId.startsWith('demo-'));
+    if (isDemo()) {
+      const db = getMockDb();
+      return db.goals.filter(g => g.employee_id === employeeId || employeeId.startsWith('demo-'));
+    }
     
     const { data, error } = await supabase
       .from('goals')
@@ -28,11 +54,9 @@ export const goalsService = {
     return data;
   },
 
-  // Fetch goals for a manager's team
   async getTeamGoals(managerId) {
-    if (isDemo()) return MOCK_GOALS;
+    if (isDemo()) return getMockDb().goals;
 
-    // First get team members
     const { data: team, error: teamError } = await supabase
       .from('profiles')
       .select('id')
@@ -50,9 +74,8 @@ export const goalsService = {
     return data;
   },
 
-  // Fetch all goals across the organization (Admin)
   async getAllGoals() {
-    if (isDemo()) return MOCK_GOALS;
+    if (isDemo()) return getMockDb().goals;
 
     const { data, error } = await supabase
       .from('goals')
@@ -62,9 +85,14 @@ export const goalsService = {
     return data;
   },
 
-  // Create a new goal
   async createGoal(goalData) {
-    if (isDemo()) return { ...goalData, id: Math.random().toString() };
+    if (isDemo()) {
+      const db = getMockDb();
+      const newGoal = { ...goalData, id: Math.random().toString(36).substr(2, 9) };
+      db.goals.push(newGoal);
+      saveMockDb(db);
+      return newGoal;
+    }
 
     const { data, error } = await supabase
       .from('goals')
@@ -76,9 +104,17 @@ export const goalsService = {
     return data;
   },
 
-  // Update an existing goal
   async updateGoal(goalId, updates) {
-    if (isDemo()) return { id: goalId, ...updates };
+    if (isDemo()) {
+      const db = getMockDb();
+      const idx = db.goals.findIndex(g => g.id === goalId);
+      if (idx !== -1) {
+        db.goals[idx] = { ...db.goals[idx], ...updates };
+        saveMockDb(db);
+        return db.goals[idx];
+      }
+      return null;
+    }
 
     const { data, error } = await supabase
       .from('goals')
@@ -91,9 +127,17 @@ export const goalsService = {
     return data;
   },
 
-  // Upsert multiple goals (bulk save/update)
   async upsertGoals(goals) {
-    if (isDemo()) return goals;
+    if (isDemo()) {
+      const db = getMockDb();
+      goals.forEach(g => {
+        const idx = db.goals.findIndex(eg => eg.id === g.id);
+        if (idx !== -1) db.goals[idx] = { ...db.goals[idx], ...g };
+        else db.goals.push({ ...g, id: g.id || Math.random().toString(36).substr(2, 9) });
+      });
+      saveMockDb(db);
+      return goals;
+    }
 
     const { data, error } = await supabase
       .from('goals')
@@ -104,9 +148,13 @@ export const goalsService = {
     return data;
   },
 
-  // Submit a check-in
   async submitCheckIn(checkInData) {
-    if (isDemo()) return checkInData;
+    if (isDemo()) {
+      const db = getMockDb();
+      db.check_ins.push(checkInData);
+      saveMockDb(db);
+      return checkInData;
+    }
 
     const { data, error } = await supabase
       .from('check_ins')
@@ -124,7 +172,10 @@ export const goalsService = {
  */
 export const usersService = {
   async getProfile(userId) {
-    if (isDemo()) return { id: userId, name: 'Demo User', role: 'employee' };
+    if (isDemo()) {
+      const db = getMockDb();
+      return db.profiles.find(p => p.id === userId) || { id: userId, name: 'Demo User', role: 'employee' };
+    }
 
     const { data, error } = await supabase
       .from('profiles')
@@ -137,7 +188,7 @@ export const usersService = {
   },
 
   async getTeam(managerId) {
-    if (isDemo()) return [{ id: 'demo-emp-1', name: 'Harshi Sharma', role: 'employee', designation: 'Analyst' }];
+    if (isDemo()) return getMockDb().profiles.filter(p => p.role === 'employee');
 
     const { data, error } = await supabase
       .from('profiles')
@@ -149,10 +200,7 @@ export const usersService = {
   },
 
   async getAllUsers() {
-    if (isDemo()) return [
-      { id: '1', name: 'Harshi Sharma', role: 'employee', status: 'active', department: 'Operations' },
-      { id: '2', name: 'Janhvi Singh', role: 'manager', status: 'active', department: 'Operations' }
-    ];
+    if (isDemo()) return getMockDb().profiles;
 
     const { data, error } = await supabase
       .from('profiles')
@@ -163,7 +211,13 @@ export const usersService = {
   },
 
   async createProfile(profileData) {
-    if (isDemo()) return profileData;
+    if (isDemo()) {
+      const db = getMockDb();
+      const newProfile = { ...profileData, id: profileData.id || Math.random().toString(36).substr(2, 9) };
+      db.profiles.push(newProfile);
+      saveMockDb(db);
+      return newProfile;
+    }
 
     const { data, error } = await supabase
       .from('profiles')
@@ -176,7 +230,16 @@ export const usersService = {
   },
 
   async updateProfile(userId, updates) {
-    if (isDemo()) return { id: userId, ...updates };
+    if (isDemo()) {
+      const db = getMockDb();
+      const idx = db.profiles.findIndex(p => p.id === userId);
+      if (idx !== -1) {
+        db.profiles[idx] = { ...db.profiles[idx], ...updates };
+        saveMockDb(db);
+        return db.profiles[idx];
+      }
+      return null;
+    }
 
     const { data, error } = await supabase
       .from('profiles')
@@ -195,7 +258,7 @@ export const usersService = {
  */
 export const auditService = {
   async getRecentLogs(limit = 10) {
-    if (isDemo()) return [{ id: '1', action: 'LOGIN', actor: 'Demo', timestamp: new Date().toISOString() }];
+    if (isDemo()) return getMockDb().audit_logs.slice(-limit).reverse();
 
     const { data, error } = await supabase
       .from('audit_logs')
@@ -208,7 +271,13 @@ export const auditService = {
   },
 
   async logAction(action, actor, details) {
-    if (isDemo()) return { action, actor, details };
+    if (isDemo()) {
+      const db = getMockDb();
+      const log = { id: Math.random().toString(), action, actor, details, timestamp: new Date().toISOString() };
+      db.audit_logs.push(log);
+      saveMockDb(db);
+      return log;
+    }
 
     const { data, error } = await supabase
       .from('audit_logs')
@@ -218,4 +287,5 @@ export const auditService = {
     return data;
   }
 };
+
 
