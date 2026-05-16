@@ -1,12 +1,10 @@
 import { useAuth } from '../../context/AuthContext';
 import StatCard from '../../components/dashboard/StatCard';
 import PendingApprovalsWidget from '../../components/dashboard/PendingApprovalsWidget';
-import AuditFeed from '../../components/dashboard/AuditFeed';
 import EmployeeProgressChart from '../../components/charts/EmployeeProgressChart';
-import StatusBadge from '../../components/shared/StatusBadge';
-import { mockUsers, getTeamMembers } from '../../data/mockUsers';
+import { getTeamMembers } from '../../data/mockUsers';
 import { mockGoals, GOAL_STATUS, teamProgressData } from '../../data/mockGoals';
-import { Users, CheckSquare, Clock, BarChart3, ChevronRight, TrendingUp } from 'lucide-react';
+import { Users, CheckSquare, Clock, ChevronRight, TrendingUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '../../lib/utils';
 import { motion } from 'framer-motion';

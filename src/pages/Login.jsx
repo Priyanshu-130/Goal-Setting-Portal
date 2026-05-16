@@ -29,7 +29,7 @@ export default function Login() {
     try {
       const user = login(email, password);
       navigate(ROLE_REDIRECT[user.role]);
-    } catch (err) {
+    } catch {
       setError('Invalid credentials. Please use a demo account.');
     }
   };

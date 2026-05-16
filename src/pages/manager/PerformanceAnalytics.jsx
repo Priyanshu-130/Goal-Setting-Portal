@@ -4,7 +4,7 @@ import GoalCompletionChart from '../../components/charts/GoalCompletionChart';
 import QuarterlyTrendChart from '../../components/charts/QuarterlyTrendChart';
 import StatCard from '../../components/dashboard/StatCard';
 import { getTeamMembers } from '../../data/mockUsers';
-import { teamProgressData, mockGoals, GOAL_STATUS } from '../../data/mockGoals';
+import { teamProgressData, mockGoals } from '../../data/mockGoals';
 import { cn } from '../../lib/utils';
 import { TrendingUp, Users, Award, BarChart3 } from 'lucide-react';
 import { motion } from 'framer-motion';

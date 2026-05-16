@@ -93,18 +93,7 @@ export default function Reports() {
     return { quarter: q, completed, total, pct: total > 0 ? Math.round((completed / total) * 100) : 0 };
   });
 
-  // Planned vs Actual per employee
-  const plannedVsActual = mockUsers.filter(u => u.role === 'employee').map(user => {
-    const userGoals = mockGoals.filter(g => g.employeeId === user.id && g.status === GOAL_STATUS.APPROVED);
-    let totalScore = 0, count = 0;
-    userGoals.forEach(g => {
-      ['Q1', 'Q2'].forEach(q => {
-        const s = computeProgressScore(g, g.checkIns?.[q] || {});
-        if (s !== null) { totalScore += s; count++; }
-      });
-    });
-    return { user, goals: userGoals.length, avgScore: count > 0 ? Math.round(totalScore / count) : null };
-  }).filter(r => r.goals > 0);
+
 
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="show" className="space-y-8 pb-12 max-w-7xl">

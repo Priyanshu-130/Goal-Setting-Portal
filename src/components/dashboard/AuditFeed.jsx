@@ -44,11 +44,11 @@ export default function AuditFeed({ limit = 6 }) {
                 <Icon className="h-4 w-4" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm text-slate-700 dark:text-slate-700">
+                <p className="text-sm text-slate-800">
                   <span className="font-semibold">{log.actor}</span>{' '}
-                  <span className="text-slate-500 dark:text-slate-500">{log.details}</span>
+                  <span className="text-slate-500">{log.details}</span>
                 </p>
-                <p className="text-xs text-slate-500 dark:text-slate-500 mt-0.5">{timeAgo(log.timestamp)}</p>
+                <p className="text-xs text-slate-400 mt-0.5">{timeAgo(log.timestamp)}</p>
               </div>
             </div>
           );

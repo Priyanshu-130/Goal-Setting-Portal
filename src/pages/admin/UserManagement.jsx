@@ -3,7 +3,7 @@ import { mockUsers } from '../../data/mockUsers';
 import StatusBadge from '../../components/shared/StatusBadge';
 import RoleBadge from '../../components/shared/RoleBadge';
 import { cn } from '../../lib/utils';
-import { Plus, Search, Pencil, Trash2, Save, X, UserPlus } from 'lucide-react';
+import { Plus, Search, Pencil, Save, X, UserPlus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function UserManagement() {
@@ -194,7 +194,7 @@ export default function UserManagement() {
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-slate-500 border border-slate-200 rounded-3xl shadow-2xl w-full max-w-lg p-8 relative overflow-hidden"
+              className="bg-white/95 backdrop-blur-2xl border border-slate-200 rounded-3xl shadow-2xl w-full max-w-lg p-8 relative overflow-hidden"
             >
               <div className="absolute top-0 right-0 -mt-16 -mr-16 w-48 h-48 bg-primary-500/20 rounded-full blur-[40px]" />
               <div className="flex items-center justify-between mb-8 relative z-10">

@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { mockGoals, CHECK_IN_STATUS, computeProgressScore, CHECK_IN_SCHEDULE } from '../../data/mockGoals';
-import StatusBadge from '../../components/shared/StatusBadge';
+import { mockGoals, CHECK_IN_STATUS, computeProgressScore } from '../../data/mockGoals';
 import { cn } from '../../lib/utils';
 import {
-  CalendarCheck, Save, CheckCircle2, Target, TrendingUp, AlertTriangle,
-  Info, Activity, Calendar, Lock,
+  CalendarCheck, Save, CheckCircle2,
+  Info, Calendar, Lock,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 
 const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4'];
 const QUARTER_DATES = {

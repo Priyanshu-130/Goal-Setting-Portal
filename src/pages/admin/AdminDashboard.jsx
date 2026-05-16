@@ -1,4 +1,4 @@
-import { Users, Target, AlertTriangle, Activity, ArrowUpRight, TrendingUp, ShieldCheck, FileText, CheckCircle, CalendarCheck } from 'lucide-react';
+import { Users, Target, AlertTriangle, Activity, ArrowUpRight, TrendingUp, ShieldCheck, FileText, CalendarCheck } from 'lucide-react';
 import GoalCompletionChart from '../../components/charts/GoalCompletionChart';
 import { motion } from 'framer-motion';
 import { mockGoals, GOAL_STATUS, teamProgressData } from '../../data/mockGoals';

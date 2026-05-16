@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { mockAuditLogs } from '../../data/mockAuditLogs';
 import { cn } from '../../lib/utils';
-import { Activity, Search, Filter, AlertCircle, CheckCircle, AlertTriangle, XCircle, Shield, User, BarChart3 } from 'lucide-react';
+import { Activity, Search, AlertTriangle, XCircle, CheckCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const SEVERITY_CONFIG = {
@@ -58,7 +58,7 @@ export default function AuditLogs() {
       </motion.div>
 
       {/* Filters */}
-      <motion.div variants={itemVariants} className="flex items-center gap-4 flex-wrap bg-slate-500/80 backdrop-blur-md p-4 rounded-2xl border border-slate-200 shadow-2xl">
+      <motion.div variants={itemVariants} className="flex items-center gap-4 flex-wrap bg-white/70 backdrop-blur-md p-4 rounded-2xl border border-slate-200 shadow-2xl">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
           <input 
@@ -93,7 +93,7 @@ export default function AuditLogs() {
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-500/80 backdrop-blur-md">
+              <tr className="border-b border-slate-200 bg-white/70 backdrop-blur-md">
                 <th className="text-left px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest w-48">Timestamp</th>
                 <th className="text-left px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Actor</th>
                 <th className="text-left px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest hidden md:table-cell">Action</th>
@@ -148,7 +148,7 @@ export default function AuditLogs() {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200 bg-slate-500/50 backdrop-blur-md">
+          <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200 bg-white/70 backdrop-blur-md">
             <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">
               Showing {(page - 1) * PER_PAGE + 1}–{Math.min(page * PER_PAGE, filtered.length)} of {filtered.length}
             </p>

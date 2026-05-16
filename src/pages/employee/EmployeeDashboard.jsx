@@ -5,7 +5,7 @@ import QuarterlyTrendChart from '../../components/charts/QuarterlyTrendChart';
 import AuditFeed from '../../components/dashboard/AuditFeed';
 import StatusBadge from '../../components/shared/StatusBadge';
 import { mockGoals, GOAL_STATUS, CHECK_IN_STATUS } from '../../data/mockGoals';
-import { Target, CheckCircle, Clock, TrendingUp, ChevronRight, Activity, Zap } from 'lucide-react';
+import { Target, CheckCircle, Clock, TrendingUp, ChevronRight, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 
@@ -26,7 +26,6 @@ export default function EmployeeDashboard() {
   const myGoals = mockGoals.filter((g) => g.employeeId === currentUser?.id);
   const approved = myGoals.filter((g) => g.status === GOAL_STATUS.APPROVED).length;
   const submitted = myGoals.filter((g) => g.status === GOAL_STATUS.SUBMITTED).length;
-  const totalWeightage = myGoals.filter((g) => g.status !== GOAL_STATUS.DRAFT).reduce((s, g) => s + g.weightage, 0);
 
   const completedCheckins = myGoals.reduce((sum, g) => {
     return sum + ['Q1', 'Q2', 'Q3', 'Q4'].filter(
@@ -45,7 +44,7 @@ export default function EmployeeDashboard() {
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="show" className="space-y-8 pb-12 max-w-7xl">
       {/* Hero Section */}
-      <motion.div variants={itemVariants} className="relative overflow-hidden rounded-3xl bg-slate-500/80 border border-slate-200 p-10 lg:p-14 backdrop-blur-2xl shadow-2xl">
+      <motion.div variants={itemVariants} className="relative overflow-hidden rounded-3xl bg-white/70 border border-slate-200 p-10 lg:p-14 backdrop-blur-2xl shadow-2xl">
         <div className="absolute top-0 right-0 -mt-20 -mr-20 w-[500px] h-[500px] bg-primary-600/10 rounded-full blur-[100px] animate-pulse-slow pointer-events-none" />
         <div className="absolute bottom-0 left-10 -mb-20 -ml-20 w-[400px] h-[400px] bg-primary-50 rounded-full blur-[100px] pointer-events-none" />
         
@@ -81,13 +80,13 @@ export default function EmployeeDashboard() {
 
       {/* Charts */}
       <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="card p-6 lg:p-8 lg:col-span-2 shadow-2xl border-slate-200 bg-slate-500/80 backdrop-blur-md">
+        <div className="card p-6 lg:p-8 lg:col-span-2 shadow-2xl border-slate-200 bg-white/70 backdrop-blur-md">
           <h2 className="section-title mb-6 flex items-center gap-2.5">
             <div className="w-2 h-2 rounded-full bg-primary-400 shadow-[0_0_10px_rgba(99,102,241,0.8)]" /> Quarterly Performance Trend
           </h2>
           <QuarterlyTrendChart />
         </div>
-        <div className="card p-6 lg:p-8 shadow-2xl border-slate-200 bg-slate-500/80 backdrop-blur-md">
+        <div className="card p-6 lg:p-8 shadow-2xl border-slate-200 bg-white/70 backdrop-blur-md">
            <h2 className="section-title mb-6 flex items-center gap-2.5">
             <div className="w-2 h-2 rounded-full bg-[#00e5ff] shadow-[0_0_10px_rgba(0,229,255,0.8)]" /> Goal Status
           </h2>
@@ -97,7 +96,7 @@ export default function EmployeeDashboard() {
 
       {/* Lists */}
       <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="card p-6 lg:p-8 flex flex-col shadow-2xl border-slate-200 bg-slate-500/80 backdrop-blur-md">
+        <div className="card p-6 lg:p-8 flex flex-col shadow-2xl border-slate-200 bg-white/70 backdrop-blur-md">
           <div className="flex items-center justify-between mb-8">
             <h3 className="section-title flex items-center gap-2.5">
               <div className="w-2 h-2 rounded-full bg-[#b388ff] shadow-[0_0_10px_rgba(179,136,255,0.8)]" /> My Goals Overview
@@ -133,7 +132,7 @@ export default function EmployeeDashboard() {
           </div>
         </div>
 
-        <div className="card p-6 lg:p-8 shadow-2xl border-slate-200 bg-slate-500/80 backdrop-blur-md">
+        <div className="card p-6 lg:p-8 shadow-2xl border-slate-200 bg-white/70 backdrop-blur-md">
            <div className="flex items-center justify-between mb-8">
             <h3 className="section-title flex items-center gap-2.5">
                <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.8)]" /> Recent Activity

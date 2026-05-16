@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { mockGoals, GOAL_STATUS, THRUST_AREAS, UNIT_OPTIONS_SIMPLE as UNIT_OPTIONS } from '../../data/mockGoals';
+import { mockGoals, GOAL_STATUS, THRUST_AREAS, UNIT_OPTIONS } from '../../data/mockGoals';
 import StatusBadge from '../../components/shared/StatusBadge';
 import {
   Plus, Trash2, Save, Send, Lock, AlertTriangle, CheckCircle2,
