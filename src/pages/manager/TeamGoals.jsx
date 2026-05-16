@@ -1,16 +1,16 @@
 import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { mockGoals, GOAL_STATUS, computeProgressScore } from '../../data/mockGoals';
-import { mockUsers, getTeamMembers } from '../../data/mockUsers';
+import { getTeamMembers } from '../../data/mockUsers';
 import StatusBadge from '../../components/shared/StatusBadge';
 import { cn } from '../../lib/utils';
 import {
   ChevronDown, ChevronUp, CheckCircle, XCircle, MessageSquare,
-  Pencil, Save, Search, ShieldCheck, RotateCcw, CalendarCheck, TrendingUp
+  Save, Search, ShieldCheck, RotateCcw, CalendarCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const TABS = ['approvals', 'checkins'];
+
 
 export default function TeamGoals() {
   const { currentUser } = useAuth();
@@ -28,10 +28,15 @@ export default function TeamGoals() {
   const [checkinComments, setCheckinComments] = useState({});
   const [activeCheckinQ, setActiveCheckinQ] = useState('Q1');
 
+  const [showSharedGoalModal, setShowSharedGoalModal] = useState(false);
+  const [sharedGoalForm, setSharedGoalForm] = useState({
+    title: '', description: '', thrustArea: 'Financial', target: '', weightage: 10, employeeIds: []
+  });
+
   const employeeGroups = team.map((member) => ({
     member,
     goals: goals.filter((g) => g.employeeId === member.id),
-  })).filter((grp) => grp.goals.length > 0);
+  })).filter((grp) => grp.goals.length > 0 || true); // Always show team members in filter for shared goals
 
   const filteredGroups = employeeGroups.map((grp) => ({
     ...grp,
@@ -41,7 +46,28 @@ export default function TeamGoals() {
         grp.member.name.toLowerCase().includes(search.toLowerCase());
       return matchFilter && matchSearch;
     }),
-  })).filter((grp) => grp.goals.length > 0);
+  })).filter((grp) => grp.goals.length > 0 || (search === '' && filter === 'all'));
+
+  const handlePushSharedGoal = () => {
+    if (!sharedGoalForm.title || sharedGoalForm.employeeIds.length === 0) return;
+    
+    const newGoals = sharedGoalForm.employeeIds.map(empId => ({
+      id: `g-shared-${Date.now()}-${empId}`,
+      employeeId: empId,
+      title: sharedGoalForm.title,
+      description: sharedGoalForm.description,
+      thrustArea: sharedGoalForm.thrustArea,
+      target: sharedGoalForm.target,
+      weightage: Number(sharedGoalForm.weightage),
+      status: GOAL_STATUS.APPROVED, // Shared goals are auto-approved
+      isShared: true,
+      checkIns: {}
+    }));
+    
+    setGoals(prev => [...prev, ...newGoals]);
+    setShowSharedGoalModal(false);
+    setSharedGoalForm({ title: '', description: '', thrustArea: 'Financial', target: '', weightage: 10, employeeIds: [] });
+  };
 
   const handleAction = (goalId, action) => {
     setActions((prev) => ({ ...prev, [goalId]: action }));
@@ -89,6 +115,13 @@ export default function TeamGoals() {
             {pendingCount} Awaiting Review
           </div>
         )}
+        <button
+          onClick={() => setShowSharedGoalModal(true)}
+          className="btn-primary flex items-center gap-2 whitespace-nowrap"
+        >
+          <ShieldCheck className="h-4 w-4" />
+          Push Shared Goal
+        </button>
       </div>
 
       {/* Tabs */}
@@ -415,6 +448,137 @@ export default function TeamGoals() {
           })}
         </div>
       )}
+
+      {/* ── SHARED GOAL MODAL ── */}
+      <AnimatePresence>
+        {showSharedGoalModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900">Push Shared Goal</h3>
+                  <p className="text-sm text-slate-500 mt-1">Distribute a departmental KPI to multiple team members.</p>
+                </div>
+                <button
+                  onClick={() => setShowSharedGoalModal(false)}
+                  className="p-2 hover:bg-slate-200 rounded-full transition-colors"
+                >
+                  <XCircle className="h-5 w-5 text-slate-400" />
+                </button>
+              </div>
+
+              <div className="p-6 overflow-y-auto space-y-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="md:col-span-2">
+                    <label className="label">Goal Title *</label>
+                    <input
+                      className="input"
+                      placeholder="e.g., Q3 Revenue Target"
+                      value={sharedGoalForm.title}
+                      onChange={e => setSharedGoalForm(prev => ({ ...prev, title: e.target.value }))}
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="label">Description</label>
+                    <textarea
+                      className="input min-h-[80px]"
+                      placeholder="Provide details about this shared objective..."
+                      value={sharedGoalForm.description}
+                      onChange={e => setSharedGoalForm(prev => ({ ...prev, description: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Thrust Area</label>
+                    <select
+                      className="input"
+                      value={sharedGoalForm.thrustArea}
+                      onChange={e => setSharedGoalForm(prev => ({ ...prev, thrustArea: e.target.value }))}
+                    >
+                      <option>Financial</option>
+                      <option>Customer</option>
+                      <option>Internal Process</option>
+                      <option>Learning & Growth</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label">Target Metric</label>
+                    <input
+                      className="input"
+                      placeholder="e.g., $500k MRR"
+                      value={sharedGoalForm.target}
+                      onChange={e => setSharedGoalForm(prev => ({ ...prev, target: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Weightage (%)</label>
+                    <input
+                      type="number"
+                      className="input"
+                      min={1}
+                      max={100}
+                      value={sharedGoalForm.weightage}
+                      onChange={e => setSharedGoalForm(prev => ({ ...prev, weightage: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-slate-100">
+                  <label className="label mb-3">Select Team Members</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {team.map(member => (
+                      <label
+                        key={member.id}
+                        className={cn(
+                          "flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all",
+                          sharedGoalForm.employeeIds.includes(member.id)
+                            ? "bg-primary-50 border-primary-200"
+                            : "bg-white border-slate-200 hover:border-slate-300"
+                        )}
+                      >
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-600"
+                          checked={sharedGoalForm.employeeIds.includes(member.id)}
+                          onChange={(e) => {
+                            setSharedGoalForm(prev => {
+                              const ids = e.target.checked
+                                ? [...prev.employeeIds, member.id]
+                                : prev.employeeIds.filter(id => id !== member.id);
+                              return { ...prev, employeeIds: ids };
+                            });
+                          }}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-slate-800 truncate">{member.name}</p>
+                          <p className="text-xs text-slate-500 truncate">{member.designation}</p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+                <button onClick={() => setShowSharedGoalModal(false)} className="btn-secondary">
+                  Cancel
+                </button>
+                <button
+                  onClick={handlePushSharedGoal}
+                  disabled={!sharedGoalForm.title || sharedGoalForm.employeeIds.length === 0}
+                  className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Push to Selected Members
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
