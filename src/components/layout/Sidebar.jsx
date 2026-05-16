@@ -92,10 +92,18 @@ export default function Sidebar({ collapsed, onToggle }) {
 
         <div className="pt-6 mt-6 border-t border-slate-200">
           {!collapsed && <p className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">System</p>}
-          <div className={cn("sidebar-link group text-slate-500 hover:text-slate-900", collapsed && 'justify-center px-0')} title={collapsed ? "Settings" : undefined}>
-            <Settings className="h-5 w-5 flex-shrink-0 transition-transform duration-300 group-hover:rotate-90" />
-            {!collapsed && <span>Settings</span>}
-          </div>
+          <NavLink
+            to={`/${currentUser?.role}/settings`}
+            className={({ isActive }) => cn(
+              'sidebar-link group text-slate-500 hover:text-slate-900',
+              isActive && 'active',
+              collapsed && 'justify-center px-0'
+            )}
+            title={collapsed ? "Settings" : undefined}
+          >
+            <Settings className="h-5 w-5 flex-shrink-0 transition-transform duration-300 group-hover:rotate-90 group-[.active]:text-primary-600" />
+            {!collapsed && <span className="truncate font-medium group-[.active]:font-semibold">Settings</span>}
+          </NavLink>
         </div>
       </nav>
 

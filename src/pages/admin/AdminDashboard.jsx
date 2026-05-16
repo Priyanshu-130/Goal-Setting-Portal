@@ -38,6 +38,13 @@ export default function AdminDashboard() {
     pct: emp.checkInsCompleted ? Math.round((emp.checkInsCompleted / 8) * 100) : Math.round(emp.completion * 0.8),
   }));
 
+  // Compute dynamic stats
+  const approvedGoals = mockGoals.filter(g => g.status === GOAL_STATUS.APPROVED);
+  const totalVerifications = approvedGoals.reduce((s, g) => s + Object.values(g.checkIns || {}).filter(ci => ci.status === 'completed').length, 0);
+  const pendingApprovals = mockGoals.filter(g => g.status === GOAL_STATUS.SUBMITTED).length;
+  const avgCompletion = Math.round(teamProgressData.reduce((s, d) => s + d.completion, 0) / teamProgressData.length);
+  const activeEmpCount = mockUsers.filter(u => u.status === 'active').length;
+
   return (
     <motion.div 
       variants={containerVariants}
@@ -67,10 +74,10 @@ export default function AdminDashboard() {
             Enterprise-grade identity verification and performance management platform. Oversee organizational metrics, employee compliance, and team performance in real-time.
           </p>
           <div className="flex flex-wrap gap-4">
-            <button className="btn-primary flex items-center gap-2 group">
+            <button onClick={() => navigate('/admin/analytics')} className="btn-primary flex items-center gap-2 group">
               <Activity className="h-4 w-4 transition-transform group-hover:scale-110" /> View Live Analytics
             </button>
-            <button className="btn-secondary flex items-center gap-2 group">
+            <button onClick={() => navigate('/admin/reports')} className="btn-secondary flex items-center gap-2 group">
               <FileText className="h-4 w-4 text-slate-500 group-hover:text-slate-900 transition-colors" /> Generate Reports
             </button>
           </div>
@@ -79,39 +86,39 @@ export default function AdminDashboard() {
 
       {/* KPI Stats Grid */}
       <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="stat-card group cursor-pointer">
+        <div className="stat-card group cursor-pointer" onClick={() => navigate('/admin/users')}>
           <div className="flex items-center justify-between mb-4">
             <div className="p-3 rounded-xl bg-[#2979ff]/10 text-[#2979ff] shadow-[0_0_15px_rgba(41,121,255,0.2)] border border-[#2979ff]/20 group-hover:scale-110 transition-transform">
               <ShieldCheck className="h-6 w-6" />
             </div>
-            <span className="badge-primary">98% Rate</span>
+            <span className="badge-primary">{activeEmpCount} Active</span>
           </div>
           <div className="flex flex-col">
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Verification Completion</p>
-            <h3 className="text-3xl font-extrabold text-slate-900">2,450</h3>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Total Employees</p>
+            <h3 className="text-3xl font-extrabold text-slate-900">{mockUsers.length}</h3>
             <div className="flex items-center gap-1.5 mt-2 text-xs font-medium text-emerald-400">
-              <TrendingUp className="h-3 w-3" /> +12.5% this month
+              <TrendingUp className="h-3 w-3" /> +2 this month
             </div>
           </div>
         </div>
 
-        <div className="stat-card group cursor-pointer">
+        <div className="stat-card group cursor-pointer" onClick={() => navigate('/admin/analytics')}>
           <div className="flex items-center justify-between mb-4">
             <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-400 shadow-[0_0_15px_rgba(52,211,153,0.2)] border border-emerald-500/20 group-hover:scale-110 transition-transform">
               <Target className="h-6 w-6" />
             </div>
-            <span className="badge-success">Top 10%</span>
+            <span className="badge-success">Avg Perf</span>
           </div>
           <div className="flex flex-col">
             <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Avg Performance Score</p>
-            <h3 className="text-3xl font-extrabold text-slate-900">4.8<span className="text-lg text-slate-500 font-medium">/5.0</span></h3>
+            <h3 className="text-3xl font-extrabold text-slate-900">{(avgCompletion/20).toFixed(1)}<span className="text-lg text-slate-500 font-medium">/5.0</span></h3>
             <div className="flex items-center gap-1.5 mt-2 text-xs font-medium text-slate-500">
-              Based on 145 active goals
+              Based on {mockGoals.length} active goals
             </div>
           </div>
         </div>
 
-        <div className="stat-card group cursor-pointer border-amber-500/20 shadow-[0_0_20px_rgba(251,191,36,0.05)] hover:border-amber-500/40">
+        <div className="stat-card group cursor-pointer border-amber-500/20 shadow-[0_0_20px_rgba(251,191,36,0.05)] hover:border-amber-500/40" onClick={() => navigate('/admin/cycle')}>
           <div className="flex items-center justify-between mb-4">
             <div className="p-3 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 group-hover:scale-110 transition-transform shadow-[0_0_15px_rgba(251,191,36,0.2)]">
               <AlertTriangle className="h-6 w-6" />
@@ -120,14 +127,14 @@ export default function AdminDashboard() {
           </div>
           <div className="flex flex-col">
             <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Pending Approvals</p>
-            <h3 className="text-3xl font-extrabold text-slate-900">24</h3>
+            <h3 className="text-3xl font-extrabold text-slate-900">{pendingApprovals}</h3>
             <div className="flex items-center gap-1.5 mt-2 text-xs font-medium text-amber-400">
               Requires manager sign-off
             </div>
           </div>
         </div>
 
-        <div className="stat-card group cursor-pointer">
+        <div className="stat-card group cursor-pointer" onClick={() => navigate('/admin/reports')}>
           <div className="flex items-center justify-between mb-4">
             <div className="p-3 rounded-xl bg-[#b388ff]/10 text-[#b388ff] shadow-[0_0_15px_rgba(179,136,255,0.2)] border border-[#b388ff]/20 group-hover:scale-110 transition-transform">
               <Users className="h-6 w-6" />
@@ -135,9 +142,9 @@ export default function AdminDashboard() {
           </div>
           <div className="flex flex-col">
             <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Quarterly Progress</p>
-            <h3 className="text-3xl font-extrabold text-slate-900">65%</h3>
+            <h3 className="text-3xl font-extrabold text-slate-900">{avgCompletion}%</h3>
             <div className="mt-3 progress-bar">
-              <div className="progress-fill bg-[#b388ff] w-[65%]" />
+              <div className="progress-fill bg-[#b388ff]" style={{ width: `${avgCompletion}%` }} />
             </div>
           </div>
         </div>

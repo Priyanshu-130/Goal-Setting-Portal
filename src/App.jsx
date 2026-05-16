@@ -21,6 +21,7 @@ import UserManagement from './pages/admin/UserManagement';
 import AuditLogs from './pages/admin/AuditLogs';
 import CycleConfig from './pages/admin/CycleConfig';
 import Reports from './pages/admin/Reports';
+import Settings from './pages/Settings';
 
 function ProtectedRoute({ children, allowedRoles }) {
   const { currentUser, loading } = useAuth();
@@ -59,6 +60,7 @@ export default function App() {
               <Route index element={<EmployeeDashboard />} />
               <Route path="goals"   element={<GoalSheet />} />
               <Route path="checkin" element={<QuarterlyCheckIn />} />
+              <Route path="settings" element={<Settings />} />
             </Route>
 
             {/* Manager Routes */}
@@ -70,6 +72,7 @@ export default function App() {
               <Route index element={<ManagerDashboard />} />
               <Route path="team-goals" element={<TeamGoals />} />
               <Route path="analytics"  element={<PerformanceAnalytics />} />
+              <Route path="settings"   element={<Settings />} />
             </Route>
 
             {/* Admin Routes */}
@@ -82,7 +85,9 @@ export default function App() {
               <Route path="users"   element={<UserManagement />} />
               <Route path="audit"   element={<AuditLogs />} />
               <Route path="cycle"   element={<CycleConfig />} />
+              <Route path="analytics" element={<PerformanceAnalytics />} />
               <Route path="reports" element={<Reports />} />
+              <Route path="settings" element={<Settings />} />
             </Route>
 
             {/* Catch-all */}
