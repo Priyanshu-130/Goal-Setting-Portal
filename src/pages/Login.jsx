@@ -1,7 +1,8 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Zap, LogIn, ShieldCheck } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Zap, LogIn, ShieldCheck, AlertCircle, Loader2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const DEMO_USERS = [
   { email: 'harshi@demo.com', password: 'demo123', role: 'Employee', color: 'from-primary-400 to-primary-600' },
@@ -18,6 +19,33 @@ const ROLE_REDIRECT = {
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [isLoggingIn, setIsLoggingIn] = useState(null); // stores the role being logged in
+  const [error, setError] = useState(null);
+
+  const handleLogin = async (demo) => {
+    try {
+      setError(null);
+      setIsLoggingIn(demo.role);
+      
+      await login(demo.email, demo.password);
+      
+      // Navigation is now handled by the AuthContext listener or we can do it here
+      // But we must wait a bit for the profile to be fetched by the AuthContext
+      // Actually, it's safer to navigate after the login promise resolves 
+      // but only if the user is successfully set.
+      // For now, let's just navigate.
+      navigate(ROLE_REDIRECT[demo.role.toLowerCase()]);
+    } catch (err) {
+      console.error('Login failed:', err);
+      if (err.message === 'Failed to fetch') {
+        setError('Connection failed. Please check if Supabase is configured in your .env file.');
+      } else {
+        setError(err.message || 'Login failed. Please ensure the user exists in Supabase Auth.');
+      }
+    } finally {
+      setIsLoggingIn(null);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden">
@@ -55,26 +83,44 @@ export default function Login() {
             <p className="text-xs text-slate-400">Choose your account type to continue to the portal</p>
           </div>
 
-          <div className="grid grid-cols-1 gap-4">
-            {DEMO_USERS.map((demo) => (
-              <button
-                key={demo.role}
-                onClick={() => {
-                  login(demo.email, demo.password);
-                  navigate(ROLE_REDIRECT[demo.role.toLowerCase()]);
-                }}
-                className="flex items-center gap-4 p-4 border border-slate-200 bg-white rounded-2xl hover:bg-primary-50 hover:border-primary-200 transition-all duration-300 group shadow-sm hover:shadow-md"
+          <AnimatePresence>
+            {error && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mb-6 p-4 rounded-2xl bg-rose-50 border border-rose-100 flex items-start gap-3"
               >
-                <div className={`h-12 w-12 rounded-xl bg-gradient-to-br ${demo.color} flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform`}>
-                  <ShieldCheck className="h-6 w-6" />
-                </div>
-                <div className="text-left">
-                  <span className="block text-sm font-bold text-slate-800 uppercase tracking-wider">{demo.role} Access</span>
-                  <span className="text-xs text-slate-500 font-medium">{demo.email}</span>
-                </div>
-                <LogIn className="h-4 w-4 ml-auto text-slate-300 group-hover:text-primary-500 transition-colors" />
-              </button>
-            ))}
+                <AlertCircle className="h-5 w-5 text-rose-500 flex-shrink-0 mt-0.5" />
+                <p className="text-xs font-semibold text-rose-600 leading-relaxed">{error}</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <div className="grid grid-cols-1 gap-4">
+            {DEMO_USERS.map((demo) => {
+              const loading = isLoggingIn === demo.role;
+              return (
+                <button
+                  key={demo.role}
+                  disabled={isLoggingIn !== null}
+                  onClick={() => handleLogin(demo)}
+                  className={cn(
+                    "flex items-center gap-4 p-4 border border-slate-200 bg-white rounded-2xl hover:bg-primary-50 hover:border-primary-200 transition-all duration-300 group shadow-sm hover:shadow-md relative overflow-hidden",
+                    isLoggingIn !== null && isLoggingIn !== demo.role && "opacity-50 grayscale"
+                  )}
+                >
+                  <div className={`h-12 w-12 rounded-xl bg-gradient-to-br ${demo.color} flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform`}>
+                    {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : <ShieldCheck className="h-6 w-6" />}
+                  </div>
+                  <div className="text-left">
+                    <span className="block text-sm font-bold text-slate-800 uppercase tracking-wider">{demo.role} Access</span>
+                    <span className="text-xs text-slate-500 font-medium">{demo.email}</span>
+                  </div>
+                  {!loading && <LogIn className="h-4 w-4 ml-auto text-slate-300 group-hover:text-primary-500 transition-colors" />}
+                </button>
+              );
+            })}
           </div>
 
           <div className="mt-10 pt-8 border-t border-slate-100">
@@ -91,3 +137,8 @@ export default function Login() {
     </div>
   );
 }
+
+function cn(...classes) {
+  return classes.filter(Boolean).join(' ');
+}
+

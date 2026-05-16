@@ -1,12 +1,13 @@
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import EmployeeProgressChart from '../../components/charts/EmployeeProgressChart';
 import GoalCompletionChart from '../../components/charts/GoalCompletionChart';
 import QuarterlyTrendChart from '../../components/charts/QuarterlyTrendChart';
 import StatCard from '../../components/dashboard/StatCard';
-import { getTeamMembers } from '../../data/mockUsers';
-import { teamProgressData, mockGoals } from '../../data/mockGoals';
+import { goalsService, usersService } from '../../lib/services';
+import { GOAL_STATUS } from '../../lib/constants';
 import { cn } from '../../lib/utils';
-import { TrendingUp, Users, Award, BarChart3 } from 'lucide-react';
+import { TrendingUp, Users, Award, BarChart3, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const containerVariants = {
@@ -21,12 +22,82 @@ const itemVariants = {
 
 export default function PerformanceAnalytics() {
   const { currentUser } = useAuth();
-  const team = getTeamMembers(currentUser?.id);
-  const teamGoals = mockGoals.filter((g) => team.map((u) => u.id).includes(g.employeeId));
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState({
+    team: [],
+    goals: [],
+    stats: { avgComp: 0, topPerformer: null, atRiskCount: 0 },
+    rankings: []
+  });
 
-  const avgComp = Math.round(teamProgressData.reduce((s, d) => s + d.completion, 0) / teamProgressData.length);
-  const topPerformer = teamProgressData.reduce((a, b) => a.completion > b.completion ? a : b);
-  const atRisk = teamProgressData.filter((d) => d.completion < 50).length;
+  useEffect(() => {
+    if (currentUser?.id) {
+      loadData();
+    }
+  }, [currentUser]);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const [teamMembers, allTeamGoals] = await Promise.all([
+        usersService.getTeam(currentUser.id),
+        goalsService.getTeamGoals(currentUser.id)
+      ]);
+
+      // Calculate stats per employee
+      const rankings = teamMembers.map(member => {
+        const memberGoals = allTeamGoals.filter(g => g.employee_id === member.id);
+        const approved = memberGoals.filter(g => g.status === GOAL_STATUS.APPROVED).length;
+        const submitted = memberGoals.filter(g => g.status === GOAL_STATUS.SUBMITTED).length;
+        
+        // Simple completion average (mock logic for now as we don't have historical progression yet)
+        const completion = memberGoals.length > 0 
+          ? Math.round((approved / memberGoals.length) * 100) 
+          : 0;
+
+        return {
+          id: member.id,
+          name: member.name,
+          goals: memberGoals.length,
+          approved,
+          submitted,
+          completion
+        };
+      });
+
+      const avgComp = rankings.length > 0 
+        ? Math.round(rankings.reduce((s, d) => s + d.completion, 0) / rankings.length)
+        : 0;
+      
+      const topPerformer = rankings.length > 0 
+        ? rankings.reduce((a, b) => a.completion > b.completion ? a : b)
+        : null;
+      
+      const atRiskCount = rankings.filter((d) => d.completion < 50 && d.goals > 0).length;
+
+      setData({
+        team: teamMembers,
+        goals: allTeamGoals,
+        stats: { avgComp, topPerformer, atRiskCount },
+        rankings
+      });
+    } catch (error) {
+      console.error('Failed to load analytics data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-3">
+        <Loader2 className="h-8 w-8 text-primary-600 animate-spin" />
+        <p className="text-slate-500 font-medium">Crunching team performance data...</p>
+      </div>
+    );
+  }
+
+  const { stats, rankings } = data;
 
   return (
     <motion.div 
@@ -45,15 +116,15 @@ export default function PerformanceAnalytics() {
 
       {/* Stats */}
       <motion.div variants={itemVariants} className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={TrendingUp} label="Avg Completion"  value={`${avgComp}%`}               color="primary" trend={8} />
-        <StatCard icon={Award}      label="Top Performer"   value={topPerformer.name.split(' ')[0]} color="success" />
-        <StatCard icon={Users}      label="At Risk"         value={atRisk}                         color="danger" />
-        <StatCard icon={BarChart3}  label="Total Goals"     value={teamGoals.length}               color="info" />
+        <StatCard icon={TrendingUp} label="Avg Completion"  value={`${stats.avgComp}%`}               color="primary" trend={8} />
+        <StatCard icon={Award}      label="Top Performer"   value={stats.topPerformer ? stats.topPerformer.name.split(' ')[0] : 'N/A'} color="success" />
+        <StatCard icon={Users}      label="At Risk"         value={stats.atRiskCount}                         color="danger" />
+        <StatCard icon={BarChart3}  label="Total Goals"     value={data.goals.length}               color="info" />
       </motion.div>
 
       {/* Charts */}
       <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <EmployeeProgressChart />
+        <EmployeeProgressChart data={rankings} />
         <GoalCompletionChart />
       </motion.div>
       <motion.div variants={itemVariants}>
@@ -79,7 +150,7 @@ export default function PerformanceAnalytics() {
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
-              {[...teamProgressData]
+              {[...rankings]
                 .sort((a, b) => b.completion - a.completion)
                 .map((emp, rank) => (
                   <tr key={emp.name} className="hover:bg-white/[0.02] transition-colors">

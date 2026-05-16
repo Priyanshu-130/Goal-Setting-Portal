@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { mockGoals, GOAL_STATUS, THRUST_AREAS, UNIT_OPTIONS } from '../../data/mockGoals';
+import { GOAL_STATUS, THRUST_AREAS, UNIT_OPTIONS } from '../../lib/constants';
+import { goalsService, auditService } from '../../lib/services';
 import StatusBadge from '../../components/shared/StatusBadge';
 import {
   Plus, Trash2, Save, Send, Lock, AlertTriangle, CheckCircle2,
-  ChevronDown, ChevronUp, Share2, Info
+  ChevronDown, ChevronUp, Share2, Info, Loader2
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -12,16 +13,17 @@ import { motion, AnimatePresence } from 'framer-motion';
 const MAX_GOALS = 8;
 const MIN_WEIGHTAGE = 10;
 
-const emptyGoal = () => ({
-  id: `NEW-${Date.now()}`,
+const emptyGoal = (employeeId) => ({
+  employee_id: employeeId,
   title: '',
   description: '',
-  thrustArea: '',
+  thrust_area: '',
   unit: 'numeric',
   target: '',
   weightage: 10,
-  isShared: false,
-  isNew: true,
+  is_shared: false,
+  status: 'draft',
+  isNew: true, // Internal UI flag
 });
 
 const containerVariants = {
@@ -36,26 +38,44 @@ const itemVariants = {
 
 export default function GoalSheet() {
   const { currentUser } = useAuth();
-  const existingGoals = mockGoals.filter((g) => g.employeeId === currentUser?.id);
-  const isLocked = existingGoals.every((g) => g.status === GOAL_STATUS.APPROVED);
-
-  const [goals, setGoals] = useState(
-    existingGoals.length > 0 ? existingGoals : [emptyGoal()]
-  );
+  const [goals, setGoals] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(null);
   const [saved, setSaved] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
 
+  useEffect(() => {
+    async function loadGoals() {
+      if (!currentUser?.id) return;
+      try {
+        setLoading(true);
+        const data = await goalsService.getEmployeeGoals(currentUser.id);
+        if (data && data.length > 0) {
+          setGoals(data);
+        } else {
+          setGoals([emptyGoal(currentUser.id)]);
+        }
+      } catch (err) {
+        console.error('Error loading goals:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadGoals();
+  }, [currentUser]);
+
+  const isLocked = goals.length > 0 && goals.every((g) => g.status === GOAL_STATUS.APPROVED);
   const totalWeightage = goals.reduce((s, g) => s + Number(g.weightage || 0), 0);
   const remaining = 100 - totalWeightage;
 
   const validate = () => {
     const errs = {};
     goals.forEach((g, i) => {
-      if (!g.title.trim()) errs[`${i}_title`] = 'Title is required';
-      if (!g.thrustArea)   errs[`${i}_thrust`] = 'Thrust area required';
-      if (!g.target.trim()) errs[`${i}_target`] = 'Target is required';
+      if (!g.title?.trim()) errs[`${i}_title`] = 'Title is required';
+      if (!g.thrust_area)   errs[`${i}_thrust`] = 'Thrust area required';
+      if (!g.target?.trim()) errs[`${i}_target`] = 'Target is required';
       if (Number(g.weightage) < MIN_WEIGHTAGE) errs[`${i}_weight`] = `Min ${MIN_WEIGHTAGE}%`;
     });
     if (totalWeightage !== 100) errs['total'] = `Total weightage must be 100% (currently ${totalWeightage}%)`;
@@ -63,14 +83,14 @@ export default function GoalSheet() {
     return Object.keys(errs).length === 0;
   };
 
-  const updateGoal = (idx, field, val) => {
+  const updateGoalField = (idx, field, val) => {
     if (isLocked) return;
     setGoals((prev) => prev.map((g, i) => i === idx ? { ...g, [field]: field === 'weightage' ? Number(val) : val } : g));
   };
 
   const addGoal = () => {
     if (goals.length >= MAX_GOALS || isLocked) return;
-    setGoals((prev) => [...prev, emptyGoal()]);
+    setGoals((prev) => [...prev, emptyGoal(currentUser.id)]);
     setExpanded(goals.length);
   };
 
@@ -79,16 +99,58 @@ export default function GoalSheet() {
     setGoals((prev) => prev.filter((_, i) => i !== idx));
   };
 
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const handleSave = async () => {
+    try {
+      setIsSubmitting(true);
+      // Clean internal flags before saving
+      const goalsToSave = goals.map(({ isNew, ...g }) => g);
+      await goalsService.upsertGoals(goalsToSave);
+      
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+      
+      // Refresh goals to get IDs for new ones
+      const refreshed = await goalsService.getEmployeeGoals(currentUser.id);
+      setGoals(refreshed);
+    } catch (err) {
+      console.error('Save failed:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validate()) return;
-    setSubmitted(true);
-    setTimeout(() => setSubmitted(false), 2500);
+    try {
+      setIsSubmitting(true);
+      const goalsToSubmit = goals.map(({ isNew, ...g }) => ({
+        ...g,
+        status: GOAL_STATUS.SUBMITTED
+      }));
+      await goalsService.upsertGoals(goalsToSubmit);
+      await auditService.logAction('SUBMITTED_GOALS', currentUser.name, `Submitted ${goals.length} goals for approval`);
+      
+      setSubmitted(true);
+      setTimeout(() => setSubmitted(false), 2500);
+      
+      // Refresh UI state
+      const refreshed = await goalsService.getEmployeeGoals(currentUser.id);
+      setGoals(refreshed);
+    } catch (err) {
+      console.error('Submit failed:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[40vh] gap-3 text-slate-500">
+        <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
+        <p className="font-medium">Loading your goal sheet...</p>
+      </div>
+    );
+  }
 
   const weightColor = totalWeightage === 100
     ? 'text-primary-600'
@@ -151,7 +213,7 @@ export default function GoalSheet() {
         {goals.map((goal, idx) => (
           <motion.div
             variants={itemVariants}
-            key={goal.id}
+            key={goal.id || idx}
             className={cn(
               'card border-l-4 overflow-hidden transition-all duration-300 hover:border-l-[6px]',
               goal.status === GOAL_STATUS.APPROVED ? 'border-l-emerald-500 hover:shadow-[0_0_20px_rgba(16,185,129,0.1)]' :
@@ -170,19 +232,19 @@ export default function GoalSheet() {
                   <span className="text-base font-bold text-slate-900">
                     Goal {idx + 1}: {goal.title || <span className="text-slate-500 font-normal italic">Untitled goal</span>}
                   </span>
-                  {goal.isShared && (
+                  {goal.is_shared && (
                     <span className="badge-primary text-[10px] uppercase tracking-widest gap-1 py-0.5"><Share2 className="h-3 w-3" /> Shared KPI</span>
                   )}
                   {goal.status && !goal.isNew && <StatusBadge status={goal.status} />}
                 </div>
                 <div className="flex items-center gap-4 mt-2 text-sm text-slate-500 font-medium">
-                  {goal.thrustArea && <span>{goal.thrustArea}</span>}
+                  {goal.thrust_area && <span>{goal.thrust_area}</span>}
                   {goal.target && <span>Target: <strong className="text-slate-700">{goal.target}</strong></span>}
                   <span className="font-bold text-primary-600">{goal.weightage}% wt</span>
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                {!isLocked && !goal.isShared && goals.length > 1 && (
+                {!isLocked && !goal.is_shared && goals.length > 1 && (
                   <button
                     onClick={(e) => { e.stopPropagation(); removeGoal(idx); }}
                     className="p-2 rounded-xl hover:bg-[#ff4081]/10 text-slate-500 hover:text-[#ff4081] transition-colors"
@@ -211,8 +273,8 @@ export default function GoalSheet() {
                       className={cn('input', errors[`${idx}_title`] && 'border-[#ff4081] focus:ring-[#ff4081]')}
                       placeholder="e.g. Reduce Bug Count by 40%"
                       value={goal.title}
-                      onChange={(e) => updateGoal(idx, 'title', e.target.value)}
-                      disabled={isLocked || (goal.isShared && !goal.isNew)}
+                      onChange={(e) => updateGoalField(idx, 'title', e.target.value)}
+                      disabled={isLocked || (goal.is_shared && !goal.isNew)}
                     />
                     {errors[`${idx}_title`] && <p className="text-xs font-medium text-[#ff4081] mt-1.5">{errors[`${idx}_title`]}</p>}
                   </div>
@@ -225,8 +287,8 @@ export default function GoalSheet() {
                       className="input resize-none h-24"
                       placeholder="Describe what success looks like..."
                       value={goal.description}
-                      onChange={(e) => updateGoal(idx, 'description', e.target.value)}
-                      disabled={isLocked || (goal.isShared && !goal.isNew)}
+                      onChange={(e) => updateGoalField(idx, 'description', e.target.value)}
+                      disabled={isLocked || (goal.is_shared && !goal.isNew)}
                     />
                   </div>
 
@@ -236,9 +298,9 @@ export default function GoalSheet() {
                     <select
                       id={`goal-thrust-${idx}`}
                       className={cn('input', errors[`${idx}_thrust`] && 'border-[#ff4081]')}
-                      value={goal.thrustArea}
-                      onChange={(e) => updateGoal(idx, 'thrustArea', e.target.value)}
-                      disabled={isLocked || (goal.isShared && !goal.isNew)}
+                      value={goal.thrust_area}
+                      onChange={(e) => updateGoalField(idx, 'thrust_area', e.target.value)}
+                      disabled={isLocked || (goal.is_shared && !goal.isNew)}
                     >
                       <option value="">Select thrust area</option>
                       {THRUST_AREAS.map((t) => <option key={t} value={t}>{t}</option>)}
@@ -253,8 +315,8 @@ export default function GoalSheet() {
                       id={`goal-unit-${idx}`}
                       className="input"
                       value={goal.unit}
-                      onChange={(e) => updateGoal(idx, 'unit', e.target.value)}
-                      disabled={isLocked || (goal.isShared && !goal.isNew)}
+                      onChange={(e) => updateGoalField(idx, 'unit', e.target.value)}
+                      disabled={isLocked || (goal.is_shared && !goal.isNew)}
                     >
                       {UNIT_OPTIONS.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
                     </select>
@@ -268,8 +330,8 @@ export default function GoalSheet() {
                       className={cn('input', errors[`${idx}_target`] && 'border-[#ff4081]')}
                       placeholder={UNIT_OPTIONS.find((u) => u.value === goal.unit)?.placeholder}
                       value={goal.target}
-                      onChange={(e) => updateGoal(idx, 'target', e.target.value)}
-                      disabled={isLocked || (goal.isShared && !goal.isNew)}
+                      onChange={(e) => updateGoalField(idx, 'target', e.target.value)}
+                      disabled={isLocked || (goal.is_shared && !goal.isNew)}
                     />
                     {errors[`${idx}_target`] && <p className="text-xs font-medium text-[#ff4081] mt-1.5">{errors[`${idx}_target`]}</p>}
                   </div>
@@ -285,7 +347,7 @@ export default function GoalSheet() {
                         max={100}
                         className={cn('input w-full', errors[`${idx}_weight`] && 'border-[#ff4081]')}
                         value={goal.weightage}
-                        onChange={(e) => updateGoal(idx, 'weightage', e.target.value)}
+                        onChange={(e) => updateGoalField(idx, 'weightage', e.target.value)}
                         disabled={isLocked}
                       />
                       <span className="text-base font-extrabold text-primary-600 w-8">%</span>
@@ -294,7 +356,7 @@ export default function GoalSheet() {
                   </div>
 
                   {/* Shared KPI notice */}
-                  {goal.isShared && !goal.isNew && (
+                  {goal.is_shared && !goal.isNew && (
                     <div className="sm:col-span-2">
                       <div className="flex items-start gap-3 p-4 rounded-xl bg-primary-50 border border-primary-200">
                         <Share2 className="h-4 w-4 text-primary-600 flex-shrink-0 mt-0.5" />
@@ -340,18 +402,20 @@ export default function GoalSheet() {
         <motion.div variants={itemVariants} className="flex items-center gap-4 justify-end mt-8">
           <button
             id="save-draft-btn"
+            disabled={isSubmitting}
             onClick={handleSave}
-            className={cn('btn-secondary flex items-center gap-2', saved && 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50')}
+            className={cn('btn-secondary flex items-center gap-2 min-w-[140px] justify-center', saved && 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50')}
           >
-            {saved ? <CheckCircle2 className="h-4 w-4" /> : <Save className="h-4 w-4" />}
+            {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : saved ? <CheckCircle2 className="h-4 w-4" /> : <Save className="h-4 w-4" />}
             {saved ? 'Saved!' : 'Save Draft'}
           </button>
           <button
             id="submit-goals-btn"
+            disabled={isSubmitting}
             onClick={handleSubmit}
-            className={cn('btn-primary flex items-center gap-2', submitted && 'bg-emerald-500 hover:bg-emerald-600 shadow-[0_0_15px_rgba(16,185,129,0.4)] border-emerald-500')}
+            className={cn('btn-primary flex items-center gap-2 min-w-[180px] justify-center', submitted && 'bg-emerald-500 hover:bg-emerald-600 shadow-[0_0_15px_rgba(16,185,129,0.4)] border-emerald-500')}
           >
-            {submitted ? <CheckCircle2 className="h-4 w-4 text-slate-900" /> : <Send className="h-4 w-4" />}
+            {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : submitted ? <CheckCircle2 className="h-4 w-4 text-slate-900" /> : <Send className="h-4 w-4" />}
             {submitted ? 'Submitted!' : 'Submit for Approval'}
           </button>
         </motion.div>

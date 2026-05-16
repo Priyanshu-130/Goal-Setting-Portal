@@ -1,10 +1,11 @@
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import StatCard from '../../components/dashboard/StatCard';
 import PendingApprovalsWidget from '../../components/dashboard/PendingApprovalsWidget';
 import EmployeeProgressChart from '../../components/charts/EmployeeProgressChart';
-import { getTeamMembers } from '../../data/mockUsers';
-import { mockGoals, GOAL_STATUS, teamProgressData } from '../../data/mockGoals';
-import { Users, CheckSquare, Clock, ChevronRight, TrendingUp } from 'lucide-react';
+import { goalsService, usersService } from '../../lib/services';
+import { GOAL_STATUS } from '../../lib/constants';
+import { Users, CheckSquare, Clock, ChevronRight, TrendingUp, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '../../lib/utils';
 import { motion } from 'framer-motion';
@@ -12,13 +13,62 @@ import { motion } from 'framer-motion';
 export default function ManagerDashboard() {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
-  const team = getTeamMembers(currentUser?.id);
+  const [teamData, setTeamData] = useState({
+    members: [],
+    goals: [],
+    completionStats: []
+  });
+  const [loading, setLoading] = useState(true);
 
-  const allTeamGoals = mockGoals.filter((g) => team.map((u) => u.id).includes(g.employeeId));
-  const pending   = allTeamGoals.filter((g) => g.status === GOAL_STATUS.SUBMITTED).length;
-  const approved  = allTeamGoals.filter((g) => g.status === GOAL_STATUS.APPROVED).length;
-  const avgCompletion = teamProgressData.length
-    ? Math.round(teamProgressData.reduce((s, t) => s + t.completion, 0) / teamProgressData.length)
+  useEffect(() => {
+    async function loadManagerData() {
+      if (!currentUser?.id) return;
+      try {
+        setLoading(true);
+        const [members, goals] = await Promise.all([
+          usersService.getTeam(currentUser.id),
+          goalsService.getTeamGoals(currentUser.id)
+        ]);
+
+        // Calculate progress for each member
+        const completionStats = members.map(member => {
+           const memberGoals = goals.filter(g => g.employee_id === member.id);
+           const approved = memberGoals.filter(g => g.status === GOAL_STATUS.APPROVED);
+           const completedCheckins = memberGoals.reduce((sum, g) => {
+             const cis = g.check_ins || {};
+             if (Array.isArray(cis)) return sum + cis.filter(c => c.status === 'completed').length;
+             return sum + Object.values(cis).filter(c => c.status === 'completed').length;
+           }, 0);
+
+
+           const completion = approved.length > 0 ? Math.round((completedCheckins / (approved.length * 4)) * 100) : 0;
+           return { id: member.id, completion };
+        });
+
+        setTeamData({ members, goals, completionStats });
+      } catch (err) {
+        console.error('Error loading manager data:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadManagerData();
+  }, [currentUser]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] gap-3 text-slate-500">
+        <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
+        <p className="font-medium">Loading team overview...</p>
+      </div>
+    );
+  }
+
+  const { members, goals, completionStats } = teamData;
+  const pending   = goals.filter((g) => g.status === GOAL_STATUS.SUBMITTED).length;
+  const approved  = goals.filter((g) => g.status === GOAL_STATUS.APPROVED).length;
+  const avgCompletion = completionStats.length
+    ? Math.round(completionStats.reduce((s, t) => s + t.completion, 0) / completionStats.length)
     : 0;
 
   return (
@@ -35,7 +85,7 @@ export default function ManagerDashboard() {
           </div>
           <h1 className="page-title leading-tight">Team Overview</h1>
           <p className="text-slate-500 font-medium tracking-wide mt-2 text-sm lg:text-base">
-            Managing <strong className="text-slate-900">{team.length} direct reports</strong> for FY2026.
+            Managing <strong className="text-slate-900">{members.length} direct reports</strong> for FY2026.
           </p>
         </div>
         <button
@@ -49,7 +99,7 @@ export default function ManagerDashboard() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard icon={Users}      label="Team Members"      value={team.length}       color="primary" />
+        <StatCard icon={Users}      label="Team Members"      value={members.length}       color="primary" />
         <StatCard icon={Clock}      label="Pending Approvals" value={pending}           color="warning" trend={-5} />
         <StatCard icon={CheckSquare} label="Approved Goals"   value={approved}          color="success" trend={12} />
         <StatCard icon={TrendingUp} label="Avg Completion"    value={`${avgCompletion}%`} color="info" trend={8} />
@@ -62,11 +112,14 @@ export default function ManagerDashboard() {
             <div className="glow-dot text-primary-500" /> Team Performance Timeline
           </h2>
           <div className="flex-1 min-h-[300px]">
-            <EmployeeProgressChart />
+            <EmployeeProgressChart data={completionStats.map(s => ({ 
+              name: members.find(m => m.id === s.id)?.name || 'Unknown', 
+              completion: s.completion 
+            }))} />
           </div>
         </div>
         <div className="flex flex-col">
-          <PendingApprovalsWidget managerId={currentUser?.id} />
+          <PendingApprovalsWidget members={members} goals={goals} />
         </div>
       </div>
 
@@ -96,16 +149,16 @@ export default function ManagerDashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
-              {team.map((member) => {
-                const memberGoals = allTeamGoals.filter((g) => g.employeeId === member.id);
-                const prog = teamProgressData.find((t) => t.name === member.name);
+              {members.map((member) => {
+                const memberGoals = goals.filter((g) => g.employee_id === member.id);
+                const stat = completionStats.find(s => s.id === member.id);
                 const hasSubmitted = memberGoals.some((g) => g.status === GOAL_STATUS.SUBMITTED);
                 return (
                   <tr key={member.id} className="table-row group">
                     <td className="pl-6 py-4">
                       <div className="flex items-center gap-4">
                         <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 text-slate-900 text-sm font-bold flex items-center justify-center flex-shrink-0 shadow-[0_0_10px_rgba(99,102,241,0.3)]">
-                          {member.avatar}
+                          {member.avatar || member.name[0]}
                         </div>
                         <div>
                           <p className="text-sm font-bold text-slate-900 group-hover:text-primary-600 transition-colors">{member.name}</p>
@@ -120,19 +173,19 @@ export default function ManagerDashboard() {
                           <div
                             className={cn(
                               'progress-fill',
-                              (prog?.completion || 0) >= 75 ? 'bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.5)]' :
-                              (prog?.completion || 0) >= 50 ? 'bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.5)]' : 'bg-rose-400 shadow-[0_0_10px_rgba(244,63,94,0.5)]'
+                              (stat?.completion || 0) >= 75 ? 'bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.5)]' :
+                              (stat?.completion || 0) >= 50 ? 'bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.5)]' : 'bg-rose-400 shadow-[0_0_10px_rgba(244,63,94,0.5)]'
                             )}
-                            style={{ width: `${prog?.completion || 0}%` }}
+                            style={{ width: `${stat?.completion || 0}%` }}
                           />
                         </div>
-                        <span className="text-xs font-bold text-slate-900">{prog?.completion || 0}%</span>
+                        <span className="text-xs font-bold text-slate-900">{stat?.completion || 0}%</span>
                       </div>
                     </td>
                     <td className="px-5 py-4">
                       {hasSubmitted
                         ? <span className="badge-warning">Pending Review</span>
-                        : memberGoals.every((g) => g.status === GOAL_STATUS.APPROVED)
+                        : memberGoals.length > 0 && memberGoals.every((g) => g.status === GOAL_STATUS.APPROVED)
                         ? <span className="badge-success">Approved</span>
                         : memberGoals.every((g) => g.status === GOAL_STATUS.DRAFT)
                         ? <span className="badge bg-slate-500/10 text-slate-500 border-slate-500/20">Draft</span>

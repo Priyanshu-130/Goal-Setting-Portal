@@ -1,24 +1,21 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { mockGoals, GOAL_STATUS, computeProgressScore } from '../../data/mockGoals';
-import { getTeamMembers } from '../../data/mockUsers';
+import { goalsService, usersService } from '../../lib/services';
+import { GOAL_STATUS, THRUST_AREAS, computeProgressScore } from '../../lib/constants';
 import StatusBadge from '../../components/shared/StatusBadge';
 import { cn } from '../../lib/utils';
 import {
   ChevronDown, ChevronUp, CheckCircle, XCircle, MessageSquare,
-  Save, Search, ShieldCheck, RotateCcw, CalendarCheck
+  Save, Search, ShieldCheck, RotateCcw, CalendarCheck, Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-
-
 export default function TeamGoals() {
   const { currentUser } = useAuth();
-  const team = getTeamMembers(currentUser?.id);
-  const teamIds = team.map((u) => u.id);
-
+  const [loading, setLoading] = useState(true);
+  const [team, setTeam] = useState([]);
+  const [goals, setGoals] = useState([]);
   const [activeTab, setActiveTab] = useState('approvals');
-  const [goals, setGoals] = useState(mockGoals.filter((g) => teamIds.includes(g.employeeId)));
   const [expanded, setExpanded] = useState(null);
   const [editing, setEditing] = useState({});
   const [comments, setComments] = useState({});
@@ -27,16 +24,37 @@ export default function TeamGoals() {
   const [search, setSearch] = useState('');
   const [checkinComments, setCheckinComments] = useState({});
   const [activeCheckinQ, setActiveCheckinQ] = useState('Q1');
+  const [processingAction, setProcessingAction] = useState(null);
 
   const [showSharedGoalModal, setShowSharedGoalModal] = useState(false);
   const [sharedGoalForm, setSharedGoalForm] = useState({
     title: '', description: '', thrustArea: 'Financial', target: '', weightage: 10, employeeIds: []
   });
 
+  useEffect(() => {
+    async function loadTeamData() {
+      if (!currentUser?.id) return;
+      try {
+        setLoading(true);
+        const [members, teamGoals] = await Promise.all([
+          usersService.getTeamMembers(currentUser.id),
+          goalsService.getManagerTeamGoals(currentUser.id)
+        ]);
+        setTeam(members);
+        setGoals(teamGoals);
+      } catch (err) {
+        console.error('Error loading team goals:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadTeamData();
+  }, [currentUser]);
+
   const employeeGroups = team.map((member) => ({
     member,
-    goals: goals.filter((g) => g.employeeId === member.id),
-  })).filter((grp) => grp.goals.length > 0 || true); // Always show team members in filter for shared goals
+    goals: goals.filter((g) => g.employee_id === member.id),
+  }));
 
   const filteredGroups = employeeGroups.map((grp) => ({
     ...grp,
@@ -48,52 +66,95 @@ export default function TeamGoals() {
     }),
   })).filter((grp) => grp.goals.length > 0 || (search === '' && filter === 'all'));
 
-  const handlePushSharedGoal = () => {
+  const handlePushSharedGoal = async () => {
     if (!sharedGoalForm.title || sharedGoalForm.employeeIds.length === 0) return;
     
-    const newGoals = sharedGoalForm.employeeIds.map(empId => ({
-      id: `g-shared-${Date.now()}-${empId}`,
-      employeeId: empId,
-      title: sharedGoalForm.title,
-      description: sharedGoalForm.description,
-      thrustArea: sharedGoalForm.thrustArea,
-      target: sharedGoalForm.target,
-      weightage: Number(sharedGoalForm.weightage),
-      status: GOAL_STATUS.APPROVED, // Shared goals are auto-approved
-      isShared: true,
-      checkIns: {}
-    }));
-    
-    setGoals(prev => [...prev, ...newGoals]);
-    setShowSharedGoalModal(false);
-    setSharedGoalForm({ title: '', description: '', thrustArea: 'Financial', target: '', weightage: 10, employeeIds: [] });
+    try {
+      setProcessingAction('shared');
+      const newGoals = sharedGoalForm.employeeIds.map(empId => ({
+        employee_id: empId,
+        title: sharedGoalForm.title,
+        description: sharedGoalForm.description,
+        thrust_area: sharedGoalForm.thrustArea,
+        target: sharedGoalForm.target,
+        weightage: Number(sharedGoalForm.weightage),
+        status: GOAL_STATUS.APPROVED, // Shared goals are auto-approved
+        is_shared: true,
+        check_ins: []
+      }));
+      
+      const created = await goalsService.upsertGoals(newGoals);
+      setGoals(prev => [...prev, ...created]);
+      setShowSharedGoalModal(false);
+      setSharedGoalForm({ title: '', description: '', thrustArea: 'Financial', target: '', weightage: 10, employeeIds: [] });
+    } catch (err) {
+      console.error('Push shared goal failed:', err);
+    } finally {
+      setProcessingAction(null);
+    }
   };
 
-  const handleAction = (goalId, action) => {
-    setActions((prev) => ({ ...prev, [goalId]: action }));
-    const newStatus = action === 'approve' ? GOAL_STATUS.APPROVED
-      : action === 'reject' ? GOAL_STATUS.REJECTED
-      : GOAL_STATUS.REWORK;
-    setGoals((prev) => prev.map((g) =>
-      g.id === goalId
-        ? { ...g, status: newStatus, managerComment: comments[goalId] || g.managerComment }
-        : g
-    ));
+  const handleAction = async (goalId, action) => {
+    try {
+      setProcessingAction(goalId);
+      const newStatus = action === 'approve' ? GOAL_STATUS.APPROVED
+        : action === 'reject' ? GOAL_STATUS.REJECTED
+        : GOAL_STATUS.REWORK;
+      
+      const managerComment = comments[goalId] || goals.find(g => g.id === goalId)?.manager_comment;
+      
+      await goalsService.updateGoal(goalId, { 
+        status: newStatus, 
+        manager_comment: managerComment 
+      });
+
+      setGoals((prev) => prev.map((g) =>
+        g.id === goalId
+          ? { ...g, status: newStatus, manager_comment: managerComment }
+          : g
+      ));
+      setActions((prev) => ({ ...prev, [goalId]: action }));
+    } catch (err) {
+      console.error('Action failed:', err);
+    } finally {
+      setProcessingAction(null);
+    }
   };
 
   const handleInlineEdit = (goalId, field, val) => {
     setEditing((prev) => ({ ...prev, [goalId]: { ...(prev[goalId] || {}), [field]: val } }));
   };
 
-  const saveInlineEdit = (goalId) => {
+  const saveInlineEdit = async (goalId) => {
     const edits = editing[goalId];
     if (!edits) return;
-    setGoals((prev) => prev.map((g) => g.id === goalId ? { ...g, ...edits } : g));
-    setEditing((prev) => { const n = { ...prev }; delete n[goalId]; return n; });
+    try {
+      setProcessingAction(goalId);
+      const dbEdits = {
+        target: edits.target,
+        weightage: edits.weightage
+      };
+      await goalsService.updateGoal(goalId, dbEdits);
+      setGoals((prev) => prev.map((g) => g.id === goalId ? { ...g, ...dbEdits } : g));
+      setEditing((prev) => { const n = { ...prev }; delete n[goalId]; return n; });
+    } catch (err) {
+      console.error('Inline edit failed:', err);
+    } finally {
+      setProcessingAction(null);
+    }
   };
 
   const pendingCount = goals.filter((g) => g.status === GOAL_STATUS.SUBMITTED).length;
   const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4'];
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <Loader2 className="h-10 w-10 text-primary-600 animate-spin" />
+        <p className="text-slate-500 font-medium">Syncing with team data...</p>
+      </div>
+    );
+  }
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6 pb-12 max-w-5xl">
@@ -177,7 +238,7 @@ export default function TeamGoals() {
                 {/* Employee Header */}
                 <div className="flex items-center gap-4 px-6 py-4 bg-slate-50 border-b border-slate-200">
                   <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 text-white text-sm font-bold flex items-center justify-center">
-                    {member.avatar}
+                    {member.avatar || member.name[0]}
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-bold text-slate-900">{member.name}</p>
@@ -203,6 +264,8 @@ export default function TeamGoals() {
                     const isExpanded = expanded === goal.id;
                     const editData = editing[goal.id] || {};
                     const action = actions[goal.id];
+                    const isProcessing = processingAction === goal.id;
+
                     return (
                       <div key={goal.id} className="group">
                         <button
@@ -212,10 +275,10 @@ export default function TeamGoals() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
                               <p className="text-sm font-bold text-slate-700 truncate">{goal.title}</p>
-                              {goal.isShared && <span className="text-[9px] font-bold text-primary-700 bg-primary-50 border border-primary-200 px-1.5 py-0.5 rounded-full">Shared</span>}
+                              {goal.is_shared && <span className="text-[9px] font-bold text-primary-700 bg-primary-50 border border-primary-200 px-1.5 py-0.5 rounded-full">Shared</span>}
                             </div>
                             <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
-                              <span>{goal.thrustArea}</span>
+                              <span>{goal.thrust_area}</span>
                               <span>·</span>
                               <span>Target: <strong className="text-slate-700">{goal.target}</strong></span>
                               <span>·</span>
@@ -250,8 +313,12 @@ export default function TeamGoals() {
                                     </div>
                                     {editing[goal.id] && (
                                       <div className="flex items-end">
-                                        <button onClick={() => saveInlineEdit(goal.id)} className="btn-secondary w-full flex justify-center items-center gap-2">
-                                          <Save className="h-4 w-4" /> Save Edits
+                                        <button 
+                                          onClick={() => saveInlineEdit(goal.id)} 
+                                          disabled={isProcessing}
+                                          className="btn-secondary w-full flex justify-center items-center gap-2"
+                                        >
+                                          {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save Edits
                                         </button>
                                       </div>
                                     )}
@@ -268,17 +335,17 @@ export default function TeamGoals() {
                                       className="input resize-none"
                                       rows={2}
                                       placeholder="Add feedback or comments..."
-                                      value={comments[goal.id] ?? goal.managerComment}
+                                      value={comments[goal.id] ?? goal.manager_comment}
                                       onChange={(e) => setComments((prev) => ({ ...prev, [goal.id]: e.target.value }))}
                                     />
                                   </div>
                                 )}
 
                                 {/* Existing comment */}
-                                {goal.managerComment && goal.status !== GOAL_STATUS.SUBMITTED && (
+                                {goal.manager_comment && goal.status !== GOAL_STATUS.SUBMITTED && (
                                   <div className="p-3 rounded-xl bg-white border border-slate-200">
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Manager Comment</p>
-                                    <p className="text-sm text-slate-700">{goal.managerComment}</p>
+                                    <p className="text-sm text-slate-700">{goal.manager_comment}</p>
                                   </div>
                                 )}
 
@@ -287,24 +354,27 @@ export default function TeamGoals() {
                                   <div className="flex flex-wrap items-center gap-3">
                                     <button
                                       id={`approve-${goal.id}`}
+                                      disabled={isProcessing}
                                       onClick={() => handleAction(goal.id, 'approve')}
-                                      className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-sm font-bold transition-all"
+                                      className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-sm font-bold transition-all disabled:opacity-50"
                                     >
-                                      <CheckCircle className="h-4 w-4" /> Approve
+                                      {isProcessing && processingAction === goal.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />} Approve
                                     </button>
                                     <button
                                       id={`rework-${goal.id}`}
+                                      disabled={isProcessing}
                                       onClick={() => handleAction(goal.id, 'rework')}
-                                      className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 text-sm font-bold transition-all"
+                                      className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 text-sm font-bold transition-all disabled:opacity-50"
                                     >
-                                      <RotateCcw className="h-4 w-4" /> Return for Rework
+                                      {isProcessing && processingAction === goal.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />} Return for Rework
                                     </button>
                                     <button
                                       id={`reject-${goal.id}`}
+                                      disabled={isProcessing}
                                       onClick={() => handleAction(goal.id, 'reject')}
-                                      className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-sm font-bold transition-all"
+                                      className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-sm font-bold transition-all disabled:opacity-50"
                                     >
-                                      <XCircle className="h-4 w-4" /> Reject
+                                      {isProcessing && processingAction === goal.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />} Reject
                                     </button>
                                   </div>
                                 )}
@@ -371,7 +441,7 @@ export default function TeamGoals() {
             return (
               <div key={member.id} className="card overflow-hidden border-slate-200">
                 <div className="flex items-center gap-4 px-6 py-4 bg-slate-50 border-b border-slate-200">
-                  <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 text-white text-sm font-bold flex items-center justify-center">{member.avatar}</div>
+                  <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 text-white text-sm font-bold flex items-center justify-center">{member.avatar || member.name[0]}</div>
                   <div className="flex-1">
                     <p className="text-sm font-bold text-slate-900">{member.name}</p>
                     <p className="text-xs text-slate-500">{member.designation}</p>
@@ -381,7 +451,9 @@ export default function TeamGoals() {
                     {(() => {
                       let total = 0, weighted = 0;
                       approvedGoals.forEach(g => {
-                        const score = computeProgressScore(g, g.checkIns?.[activeCheckinQ] || {});
+                        const cis = g.check_ins || [];
+                        const ci = Array.isArray(cis) ? cis.find(c => c.quarter === activeCheckinQ) || {} : cis[activeCheckinQ] || {};
+                        const score = computeProgressScore(g, ci);
                         if (score !== null) { weighted += score * g.weightage; total += g.weightage; }
                       });
                       if (total === 0) return <p className="text-sm font-bold text-slate-400">No data</p>;
@@ -393,14 +465,15 @@ export default function TeamGoals() {
 
                 <div className="divide-y divide-slate-100">
                   {approvedGoals.map(goal => {
-                    const ci = goal.checkIns?.[activeCheckinQ] || {};
+                    const cis = goal.check_ins || [];
+                    const ci = Array.isArray(cis) ? cis.find(c => c.quarter === activeCheckinQ) || {} : cis[activeCheckinQ] || {};
                     const score = computeProgressScore(goal, ci);
                     return (
                       <div key={goal.id} className="p-5">
                         <div className="flex items-start justify-between gap-4 mb-3">
                           <div className="flex-1">
                             <p className="text-sm font-bold text-slate-800">{goal.title}</p>
-                            <p className="text-xs text-slate-500 mt-0.5">{goal.thrustArea} · <span className="text-primary-600 font-bold">{goal.weightage}% wt</span></p>
+                            <p className="text-xs text-slate-500 mt-0.5">{goal.thrust_area} · <span className="text-primary-600 font-bold">{goal.weightage}% wt</span></p>
                           </div>
                           {score !== null && (
                             <span className={cn('text-sm font-extrabold px-3 py-1 rounded-lg border', score >= 80 ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : score >= 50 ? 'text-amber-700 bg-amber-50 border-amber-200' : 'text-rose-700 bg-rose-50 border-rose-200')}>
@@ -569,9 +642,10 @@ export default function TeamGoals() {
                 </button>
                 <button
                   onClick={handlePushSharedGoal}
-                  disabled={!sharedGoalForm.title || sharedGoalForm.employeeIds.length === 0}
-                  className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!sharedGoalForm.title || sharedGoalForm.employeeIds.length === 0 || processingAction === 'shared'}
+                  className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
+                  {processingAction === 'shared' ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
                   Push to Selected Members
                 </button>
               </div>

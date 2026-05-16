@@ -1,11 +1,13 @@
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import StatCard from '../../components/dashboard/StatCard';
 import GoalCompletionChart from '../../components/charts/GoalCompletionChart';
 import QuarterlyTrendChart from '../../components/charts/QuarterlyTrendChart';
 import AuditFeed from '../../components/dashboard/AuditFeed';
 import StatusBadge from '../../components/shared/StatusBadge';
-import { mockGoals, GOAL_STATUS, CHECK_IN_STATUS } from '../../data/mockGoals';
-import { Target, CheckCircle, Clock, TrendingUp, ChevronRight, Zap } from 'lucide-react';
+import { goalsService } from '../../lib/services';
+import { GOAL_STATUS, CHECK_IN_STATUS } from '../../lib/constants';
+import { Target, CheckCircle, Clock, TrendingUp, ChevronRight, Zap, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 
@@ -22,24 +24,64 @@ const itemVariants = {
 export default function EmployeeDashboard() {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
+  const [goals, setGoals] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const myGoals = mockGoals.filter((g) => g.employeeId === currentUser?.id);
-  const approved = myGoals.filter((g) => g.status === GOAL_STATUS.APPROVED).length;
-  const submitted = myGoals.filter((g) => g.status === GOAL_STATUS.SUBMITTED).length;
+  useEffect(() => {
+    async function loadDashboardData() {
+      if (!currentUser?.id) return;
+      try {
+        setLoading(true);
+        const data = await goalsService.getEmployeeGoals(currentUser.id);
+        setGoals(data || []);
+      } catch (err) {
+        console.error('Failed to load dashboard data:', err);
+        setError('Failed to sync with server. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadDashboardData();
+  }, [currentUser]);
 
-  const completedCheckins = myGoals.reduce((sum, g) => {
+  const approved = goals.filter((g) => g.status === GOAL_STATUS.APPROVED).length;
+  const submitted = goals.filter((g) => g.status === GOAL_STATUS.SUBMITTED).length;
+
+  const completedCheckins = goals.reduce((sum, g) => {
+    // Assuming checkIns is an object or array returned from Supabase
+    const checkIns = g.check_ins || {};
     return sum + ['Q1', 'Q2', 'Q3', 'Q4'].filter(
-      (q) => g.checkIns?.[q]?.status === CHECK_IN_STATUS.COMPLETED
+      (q) => checkIns[q]?.status === CHECK_IN_STATUS.COMPLETED
     ).length;
   }, 0);
-  const totalCheckins = myGoals.length * 4;
+  
+  const totalCheckins = goals.length * 4;
   const progressPct = totalCheckins > 0 ? Math.round((completedCheckins / totalCheckins) * 100) : 0;
 
   const goalStatusData = [
-    { name: 'Approved',  value: myGoals.filter(g => g.status === GOAL_STATUS.APPROVED).length },
+    { name: 'Approved',  value: approved },
     { name: 'Submitted', value: submitted },
-    { name: 'Draft',     value: myGoals.filter(g => g.status === GOAL_STATUS.DRAFT).length },
+    { name: 'Draft',     value: goals.filter(g => g.status === GOAL_STATUS.DRAFT).length },
   ].filter(d => d.value > 0);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <Loader2 className="h-10 w-10 text-primary-600 animate-spin" />
+        <p className="text-slate-500 font-medium animate-pulse">Synchronizing your performance data...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-8 bg-rose-50 border border-rose-100 rounded-2xl text-center">
+        <p className="text-rose-600 font-semibold">{error}</p>
+        <button onClick={() => window.location.reload()} className="mt-4 btn-primary bg-rose-600 hover:bg-rose-700">Retry Connection</button>
+      </div>
+    );
+  }
 
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="show" className="space-y-8 pb-12 max-w-7xl">
@@ -72,7 +114,7 @@ export default function EmployeeDashboard() {
 
       {/* Stat Cards */}
       <motion.div variants={itemVariants} className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard icon={Target}      label="Total Goals"   value={myGoals.length}  sub="FY2026 cycle"        color="primary" />
+        <StatCard icon={Target}      label="Total Goals"   value={goals.length}  sub="FY2026 cycle"        color="primary" />
         <StatCard icon={CheckCircle} label="Approved"      value={approved}        sub="By your manager"     color="success" trend={approved > 0 ? 15 : undefined} />
         <StatCard icon={Clock}       label="Submitted"     value={submitted}       sub="Awaiting review"     color="warning" />
         <StatCard icon={TrendingUp}  label="Overall Progress" value={`${progressPct}%`} sub="Based on check-ins" color="info"    trend={progressPct > 50 ? 8 : -3} />
@@ -109,7 +151,7 @@ export default function EmployeeDashboard() {
             </button>
           </div>
           <div className="space-y-4 flex-1">
-            {myGoals.slice(0, 4).map((goal) => (
+            {goals.slice(0, 4).map((goal) => (
               <div key={goal.id} className="flex items-center gap-4 p-4 rounded-xl bg-white/[0.02] border border-slate-200 hover:bg-white/[0.05] transition-all duration-300 group cursor-pointer hover:border-slate-200 hover:shadow-lg">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-3 mb-1">
@@ -129,6 +171,12 @@ export default function EmployeeDashboard() {
                 <StatusBadge status={goal.status} />
               </div>
             ))}
+            {goals.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-10 text-slate-400">
+                <Target className="h-10 w-10 mb-2 opacity-20" />
+                <p>No goals found for this cycle</p>
+              </div>
+            )}
           </div>
         </div>
 

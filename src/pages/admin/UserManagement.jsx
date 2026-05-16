@@ -1,13 +1,14 @@
-import { useState } from 'react';
-import { mockUsers } from '../../data/mockUsers';
+import { useState, useEffect } from 'react';
+import { usersService } from '../../lib/services';
 import StatusBadge from '../../components/shared/StatusBadge';
 import RoleBadge from '../../components/shared/RoleBadge';
 import { cn } from '../../lib/utils';
-import { Plus, Search, Pencil, Save, X, UserPlus } from 'lucide-react';
+import { Plus, Search, Pencil, Save, X, UserPlus, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function UserManagement() {
-  const [users, setUsers] = useState(mockUsers);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterRole, setFilterRole] = useState('all');
   const [editing, setEditing] = useState(null);
@@ -16,10 +17,26 @@ export default function UserManagement() {
   const [newUser, setNewUser] = useState({ name: '', email: '', role: 'employee', department: '', designation: '' });
   const [saved, setSaved] = useState(null);
 
+  useEffect(() => {
+    loadUsers();
+  }, []);
+
+  const loadUsers = async () => {
+    try {
+      setLoading(true);
+      const data = await usersService.getAllUsers();
+      setUsers(data);
+    } catch (error) {
+      console.error('Failed to load users:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const filtered = users.filter((u) => {
     const matchSearch = u.name.toLowerCase().includes(search.toLowerCase()) ||
       u.email.toLowerCase().includes(search.toLowerCase()) ||
-      u.department.toLowerCase().includes(search.toLowerCase());
+      (u.department || '').toLowerCase().includes(search.toLowerCase());
     const matchRole = filterRole === 'all' || u.role === filterRole;
     return matchSearch && matchRole;
   });
@@ -29,31 +46,54 @@ export default function UserManagement() {
     setEditData({ name: user.name, email: user.email, role: user.role, department: user.department, status: user.status });
   };
 
-  const saveEdit = (id) => {
-    setUsers((prev) => prev.map((u) => u.id === id ? { ...u, ...editData } : u));
-    setEditing(null);
-    setSaved(id);
-    setTimeout(() => setSaved(null), 1500);
+  const saveEdit = async (id) => {
+    try {
+      await usersService.updateProfile(id, editData);
+      setEditing(null);
+      setSaved(id);
+      setTimeout(() => setSaved(null), 1500);
+      loadUsers();
+    } catch (error) {
+      console.error('Failed to update user:', error);
+    }
   };
 
-  const toggleStatus = (id) => {
-    setUsers((prev) => prev.map((u) => u.id === id ? { ...u, status: u.status === 'active' ? 'inactive' : 'active' } : u));
+  const toggleStatus = async (user) => {
+    try {
+      const newStatus = user.status === 'active' ? 'inactive' : 'active';
+      await usersService.updateProfile(user.id, { status: newStatus });
+      loadUsers();
+    } catch (error) {
+      console.error('Failed to toggle status:', error);
+    }
   };
 
-  const addUser = () => {
+  const addUser = async () => {
     if (!newUser.name || !newUser.email) return;
-    const id = users.length + 10;
-    setUsers((prev) => [...prev, {
-      ...newUser, id,
-      avatar: newUser.name.split(' ').map(n => n[0]).join('').toUpperCase(),
-      joinDate: new Date().toISOString().split('T')[0],
-      employeeId: `EMP-${String(id).padStart(3, '0')}`,
-      status: 'active',
-      managerId: 2,
-    }]);
-    setShowAddModal(false);
-    setNewUser({ name: '', email: '', role: 'employee', department: '', designation: '' });
+    try {
+      await usersService.createProfile({
+        ...newUser,
+        avatar: newUser.name.split(' ').map(n => n[0]).join('').toUpperCase(),
+        status: 'active',
+        // In a real app, managerId would be selected or defaulted
+        manager_id: '43997672-8815-46b5-900f-d48e23f81e62' 
+      });
+      setShowAddModal(false);
+      setNewUser({ name: '', email: '', role: 'employee', department: '', designation: '' });
+      loadUsers();
+    } catch (error) {
+      console.error('Failed to add user:', error);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-3">
+        <Loader2 className="h-8 w-8 text-primary-600 animate-spin" />
+        <p className="text-slate-500 font-medium">Synchronizing user profiles...</p>
+      </div>
+    );
+  }
 
   return (
     <motion.div 
@@ -152,12 +192,12 @@ export default function UserManagement() {
                       )}
                     </td>
                     <td className="px-5 py-4">
-                      <button onClick={() => toggleStatus(user.id)}>
+                      <button onClick={() => toggleStatus(user)}>
                         <StatusBadge status={user.status} className="cursor-pointer hover:scale-105 transition-transform" />
                       </button>
                     </td>
                     <td className="px-5 py-4 hidden lg:table-cell">
-                      <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">{user.employeeId}</span>
+                      <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">{user.employee_id}</span>
                     </td>
                     <td className="pr-6 py-4">
                       <div className="flex items-center justify-end gap-2">

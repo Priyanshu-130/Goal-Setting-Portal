@@ -1,8 +1,10 @@
-import { Users, Target, AlertTriangle, Activity, ArrowUpRight, TrendingUp, ShieldCheck, FileText, CalendarCheck } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Users, Target, AlertTriangle, Activity, ArrowUpRight, TrendingUp, ShieldCheck, FileText, CalendarCheck, Loader2 } from 'lucide-react';
 import GoalCompletionChart from '../../components/charts/GoalCompletionChart';
+import AuditFeed from '../../components/dashboard/AuditFeed';
 import { motion } from 'framer-motion';
-import { mockGoals, GOAL_STATUS, teamProgressData } from '../../data/mockGoals';
-import { mockUsers } from '../../data/mockUsers';
+import { goalsService, usersService } from '../../lib/services';
+import { GOAL_STATUS } from '../../lib/constants';
 import { cn } from '../../lib/utils';
 import { useNavigate } from 'react-router-dom';
 
@@ -23,27 +25,107 @@ const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4'];
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
-
-  // Completion Dashboard data
-  const completionData = QUARTERS.map(q => {
-    const approvedGoals = mockGoals.filter(g => g.status === GOAL_STATUS.APPROVED);
-    const completed = approvedGoals.filter(g => g.checkIns?.[q]?.status === 'completed').length;
-    return { quarter: q, completed, total: approvedGoals.length, pct: approvedGoals.length > 0 ? Math.round((completed / approvedGoals.length) * 100) : 0 };
+  const [data, setData] = useState({
+    goals: [],
+    users: [],
+    completionStats: [],
+    empCompletion: []
   });
+  const [loading, setLoading] = useState(true);
 
-  // Employee check-in completion
-  const empCompletion = teamProgressData.map(emp => ({
-    ...emp,
-    user: mockUsers.find(u => u.name === emp.name),
-    pct: emp.checkInsCompleted ? Math.round((emp.checkInsCompleted / 8) * 100) : Math.round(emp.completion * 0.8),
-  }));
+  useEffect(() => {
+    async function loadAdminData() {
+      try {
+        setLoading(true);
+        const [allGoals, allUsers] = await Promise.all([
+          goalsService.getAllGoals(),
+          usersService.getAllUsers()
+        ]);
 
-  // Compute dynamic stats
-  const approvedGoals = mockGoals.filter(g => g.status === GOAL_STATUS.APPROVED);
-  const totalVerifications = approvedGoals.reduce((s, g) => s + Object.values(g.checkIns || {}).filter(ci => ci.status === 'completed').length, 0);
-  const pendingApprovals = mockGoals.filter(g => g.status === GOAL_STATUS.SUBMITTED).length;
-  const avgCompletion = Math.round(teamProgressData.reduce((s, d) => s + d.completion, 0) / teamProgressData.length);
-  const activeEmpCount = mockUsers.filter(u => u.status === 'active').length;
+        const approvedGoals = allGoals.filter(g => g.status === GOAL_STATUS.APPROVED);
+
+        // Completion Dashboard data
+        const completionStats = QUARTERS.map(q => {
+          const completed = approvedGoals.filter(g => {
+            const checkIns = g.check_ins || [];
+            // Handle if check_ins is array or object mapping
+            if (Array.isArray(checkIns)) {
+              return checkIns.some(ci => ci.quarter === q && ci.status === 'completed');
+            }
+            return checkIns[q]?.status === 'completed';
+          }).length;
+          
+          return { 
+            quarter: q, 
+            completed, 
+            total: approvedGoals.length, 
+            pct: approvedGoals.length > 0 ? Math.round((completed / approvedGoals.length) * 100) : 0 
+          };
+        });
+
+        // Employee check-in completion (Aggregate by user)
+        const empCompletion = allUsers.map(user => {
+          const userGoals = allGoals.filter(g => g.employee_id === user.id);
+          const approved = userGoals.filter(g => g.status === GOAL_STATUS.APPROVED);
+          
+          // Count total completed check-ins across all quarters
+          const completedCIs = userGoals.reduce((sum, g) => {
+             const cis = g.check_ins || [];
+             if (Array.isArray(cis)) return sum + cis.filter(ci => ci.status === 'completed').length;
+             return sum + Object.values(cis).filter(ci => ci.status === 'completed').length;
+          }, 0);
+
+          const completionPct = approved.length > 0 ? Math.round((completedCIs / (approved.length * 4)) * 100) : 0;
+
+          return {
+            name: user.name,
+            department: user.department,
+            goals: userGoals.length,
+            approved: approved.length,
+            checkInsCompleted: completedCIs,
+            completion: completionPct,
+            avatar: user.avatar
+          };
+        });
+
+        setData({
+          goals: allGoals,
+          users: allUsers,
+          completionStats,
+          empCompletion
+        });
+      } catch (err) {
+        console.error('Admin Data Load Error:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadAdminData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <Loader2 className="h-10 w-10 text-primary-600 animate-spin" />
+        <p className="text-slate-500 font-medium">Loading organization oversight...</p>
+      </div>
+    );
+  }
+
+  const { goals, users, completionStats, empCompletion } = data;
+  const approvedGoals = goals.filter(g => g.status === GOAL_STATUS.APPROVED);
+  const pendingApprovals = goals.filter(g => g.status === GOAL_STATUS.SUBMITTED).length;
+  const avgCompletion = empCompletion.length > 0 
+    ? Math.round(empCompletion.reduce((s, d) => s + d.completion, 0) / empCompletion.length)
+    : 0;
+  const activeEmpCount = users.filter(u => u.status === 'active').length;
+
+  const statusDistribution = [
+    { name: 'Approved', value: goals.filter(g => g.status === GOAL_STATUS.APPROVED).length },
+    { name: 'Submitted', value: goals.filter(g => g.status === GOAL_STATUS.SUBMITTED).length },
+    { name: 'Draft', value: goals.filter(g => g.status === GOAL_STATUS.DRAFT).length },
+    { name: 'Rejected', value: goals.filter(g => g.status === GOAL_STATUS.REJECTED).length },
+  ].filter(d => d.value > 0);
 
   return (
     <motion.div 
@@ -53,8 +135,7 @@ export default function AdminDashboard() {
       className="space-y-8 pb-12"
     >
       {/* Hero Section */}
-      <motion.div variants={itemVariants} className="relative overflow-hidden rounded-3xl bg-slate-500/80 border border-slate-200 p-10 lg:p-14 backdrop-blur-2xl shadow-glass">
-        {/* Abstract animated background shapes */}
+      <motion.div variants={itemVariants} className="relative overflow-hidden rounded-3xl bg-white/70 border border-slate-200 p-10 lg:p-14 backdrop-blur-2xl shadow-2xl">
         <div className="absolute top-0 right-0 -mt-20 -mr-20 w-[500px] h-[500px] bg-primary-600/10 rounded-full blur-[100px] animate-pulse-slow pointer-events-none" />
         <div className="absolute bottom-0 left-10 -mb-20 -ml-20 w-[400px] h-[400px] bg-primary-50 rounded-full blur-[100px] pointer-events-none" />
         
@@ -71,7 +152,7 @@ export default function AdminDashboard() {
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#00e5ff] to-primary-400">Goal & Verification</span> Portal
           </h1>
           <p className="text-slate-500 text-lg lg:text-xl font-medium tracking-wide mb-10 max-w-2xl leading-relaxed">
-            Enterprise-grade identity verification and performance management platform. Oversee organizational metrics, employee compliance, and team performance in real-time.
+            Enterprise-grade performance management platform. Oversee organizational metrics, employee compliance, and team performance in real-time.
           </p>
           <div className="flex flex-wrap gap-4">
             <button onClick={() => navigate('/admin/analytics')} className="btn-primary flex items-center gap-2 group">
@@ -95,9 +176,9 @@ export default function AdminDashboard() {
           </div>
           <div className="flex flex-col">
             <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Total Employees</p>
-            <h3 className="text-3xl font-extrabold text-slate-900">{mockUsers.length}</h3>
+            <h3 className="text-3xl font-extrabold text-slate-900">{users.length}</h3>
             <div className="flex items-center gap-1.5 mt-2 text-xs font-medium text-emerald-400">
-              <TrendingUp className="h-3 w-3" /> +2 this month
+              <TrendingUp className="h-3 w-3" /> Syncing with DB
             </div>
           </div>
         </div>
@@ -113,7 +194,7 @@ export default function AdminDashboard() {
             <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Avg Performance Score</p>
             <h3 className="text-3xl font-extrabold text-slate-900">{(avgCompletion/20).toFixed(1)}<span className="text-lg text-slate-500 font-medium">/5.0</span></h3>
             <div className="flex items-center gap-1.5 mt-2 text-xs font-medium text-slate-500">
-              Based on {mockGoals.length} active goals
+              Based on {goals.length} active goals
             </div>
           </div>
         </div>
@@ -162,43 +243,12 @@ export default function AdminDashboard() {
             </button>
           </div>
           <div className="flex-1 min-h-[350px]">
-            <GoalCompletionChart />
+            <GoalCompletionChart data={statusDistribution} />
           </div>
         </div>
         
-        <div className="card p-6 lg:p-8 flex flex-col">
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="section-title">Live Audit Feed</h2>
-            <button className="text-xs font-semibold text-slate-500 hover:text-slate-900 uppercase tracking-widest transition-colors">
-              View All
-            </button>
-          </div>
-          <div className="space-y-6 flex-1 overflow-y-auto pr-2">
-            {[
-              { time: '10 mins ago', title: 'Verification Approved', text: 'Harshi submitted goals for FY2026', type: 'info' },
-              { time: '1 hour ago', title: 'System Update', text: 'Janhvi approved 5 compliance records', type: 'success' },
-              { time: '2 hours ago', title: 'Config Change', text: 'Cycle config updated by Anshu', type: 'warning' },
-              { time: '5 hours ago', title: 'Review Failed', text: 'Deepa goals rejected (weightage)', type: 'danger' },
-              { time: '1 day ago', title: 'New Employee', text: 'Priya onboarded successfully', type: 'info' },
-            ].map((activity, i) => (
-              <div key={i} className="flex gap-4 relative group">
-                {i !== 4 && <div className="absolute top-8 left-2 bottom-[-24px] w-[1px] bg-gradient-to-b from-white/10 to-transparent" />}
-                <div className={`mt-1 flex-shrink-0 w-4 h-4 rounded-full border border-slate-300 shadow-[0_0_10px_currentColor] z-10 flex items-center justify-center ${
-                  activity.type === 'info' ? 'bg-[#00e5ff]/20 text-primary-600' :
-                  activity.type === 'success' ? 'bg-emerald-400/20 text-emerald-400' :
-                  activity.type === 'warning' ? 'bg-amber-400/20 text-amber-400' :
-                  'bg-[#ff4081]/20 text-[#ff4081]'
-                }`}>
-                  <div className="w-1.5 h-1.5 rounded-full bg-current" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-slate-700 group-hover:text-slate-900 transition-colors">{activity.title}</p>
-                  <p className="text-sm text-slate-500 mt-0.5">{activity.text}</p>
-                  <p className="text-[10px] uppercase tracking-widest text-slate-500 mt-1.5 font-bold">{activity.time}</p>
-                </div>
-              </div>
-            ))}
-          </div>
+        <div className="lg:col-span-1">
+          <AuditFeed limit={5} />
         </div>
       </motion.div>
 
@@ -214,7 +264,7 @@ export default function AdminDashboard() {
           </button>
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-0 divide-x divide-y lg:divide-y-0 divide-slate-100">
-          {completionData.map(d => (
+          {completionStats.map(d => (
             <div key={d.quarter} className="p-5 text-center">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">{d.quarter} Check-In</p>
               <p className={cn('text-2xl font-extrabold mb-1', d.pct >= 80 ? 'text-emerald-600' : d.pct >= 50 ? 'text-amber-600' : 'text-slate-400')}>{d.pct}%</p>
@@ -230,7 +280,7 @@ export default function AdminDashboard() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-slate-50 bg-slate-50/50">
-                  {['Employee', 'Dept', 'Goals', 'Approved', 'Q1 Done', 'Completion'].map(h => (
+                  {['Employee', 'Dept', 'Goals', 'Approved', 'Check-ins', 'Completion'].map(h => (
                     <th key={h} className="text-left px-5 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{h}</th>
                   ))}
                 </tr>
@@ -240,17 +290,15 @@ export default function AdminDashboard() {
                   <tr key={emp.name} className="hover:bg-slate-50 transition-colors">
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2">
-                        <div className="h-7 w-7 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 text-white text-[10px] font-bold flex items-center justify-center">{emp.name.split(' ').map(n=>n[0]).join('')}</div>
+                        <div className="h-7 w-7 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 text-white text-[10px] font-bold flex items-center justify-center">{emp.avatar || emp.name.split(' ').map(n=>n[0]).join('')}</div>
                         <span className="text-xs font-semibold text-slate-700">{emp.name}</span>
                       </div>
                     </td>
-                    <td className="px-5 py-3 text-xs text-slate-500">{emp.user?.department || 'Engineering'}</td>
+                    <td className="px-5 py-3 text-xs text-slate-500">{emp.department}</td>
                     <td className="px-5 py-3 text-xs font-bold text-slate-700">{emp.goals}</td>
                     <td className="px-5 py-3 text-xs font-bold text-slate-700">{emp.approved}</td>
                     <td className="px-5 py-3">
-                      {emp.checkInsCompleted > 0
-                        ? <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">✓ Done</span>
-                        : <span className="text-xs text-slate-400">—</span>}
+                      <span className="text-xs font-bold text-slate-500">{emp.checkInsCompleted} recorded</span>
                     </td>
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2">

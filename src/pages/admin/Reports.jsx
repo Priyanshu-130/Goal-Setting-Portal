@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import { mockUsers } from '../../data/mockUsers';
-import { mockGoals, GOAL_STATUS, teamProgressData, computeProgressScore } from '../../data/mockGoals';
+import { useState, useEffect } from 'react';
+import { goalsService, usersService } from '../../lib/services';
+import { GOAL_STATUS, computeProgressScore } from '../../lib/constants';
 import { cn } from '../../lib/utils';
-import { Download, FileText, BarChart3, Users, CheckCircle, TrendingUp, Unlock } from 'lucide-react';
+import { Download, FileText, BarChart3, Users, CheckCircle, TrendingUp, Unlock, Loader2 } from 'lucide-react';
 import GoalCompletionChart from '../../components/charts/GoalCompletionChart';
 import EmployeeProgressChart from '../../components/charts/EmployeeProgressChart';
 import { motion } from 'framer-motion';
@@ -12,64 +12,103 @@ const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4'];
 const containerVariants = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.08 } } };
 const itemVariants = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 24 } } };
 
-// ── Real CSV export helpers ──
-function buildAchievementCSV() {
-  const rows = [['Employee', 'Goal ID', 'Title', 'Thrust Area', 'UoM', 'Target', 'Weightage', 'Q1 Planned', 'Q1 Actual', 'Q1 Score', 'Q2 Planned', 'Q2 Actual', 'Q2 Score', 'Status']];
-  mockGoals.forEach(goal => {
-    const user = mockUsers.find(u => u.id === goal.employeeId);
-    const q1 = goal.checkIns?.Q1 || {};
-    const q2 = goal.checkIns?.Q2 || {};
-    const q1Score = computeProgressScore(goal, q1);
-    const q2Score = computeProgressScore(goal, q2);
-    rows.push([
-      user?.name || '',
-      goal.id,
-      `"${goal.title}"`,
-      goal.thrustArea,
-      goal.unit,
-      goal.target,
-      `${goal.weightage}%`,
-      q1.planned || '',
-      q1.actual || '',
-      q1Score !== null ? `${q1Score}%` : '',
-      q2.planned || '',
-      q2.actual || '',
-      q2Score !== null ? `${q2Score}%` : '',
-      goal.status,
-    ]);
-  });
-  return rows.map(r => r.join(',')).join('\n');
-}
-
-function buildCompletionCSV() {
-  const rows = [['Employee', 'Department', 'Total Goals', 'Approved', 'Submitted', 'Draft', 'Q1 Done', 'Q2 Done', 'Completion %']];
-  teamProgressData.forEach(emp => {
-    const user = mockUsers.find(u => u.name === emp.name);
-    rows.push([emp.name, user?.department || '', emp.goals, emp.approved, emp.submitted, emp.draft, emp.checkInsCompleted || '', '', `${emp.completion}%`]);
-  });
-  return rows.map(r => r.join(',')).join('\n');
-}
-
-function downloadCSV(content, filename) {
-  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = filename; a.click();
-  URL.revokeObjectURL(url);
-}
-
-const REPORT_TYPES = [
-  { id: 'achievement', label: 'Achievement Report', icon: BarChart3, desc: 'Planned Target vs Actual Achievement for all employees' },
-  { id: 'completion',  label: 'Completion Dashboard', icon: Users, desc: 'Who completed quarterly check-ins' },
-  { id: 'dept_summary', label: 'Department Summary', icon: CheckCircle, desc: 'Aggregated metrics per department' },
-  { id: 'quarterly',  label: 'Quarterly Progress', icon: TrendingUp, desc: 'Q1–Q4 performance trend report' },
-];
-
 export default function Reports() {
+  const [data, setData] = useState({ goals: [], users: [], completionStats: [] });
+  const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(null);
   const [unlocking, setUnlocking] = useState(null);
   const [unlockedGoals, setUnlockedGoals] = useState([]);
-  const approvedGoals = mockGoals.filter(g => g.status === GOAL_STATUS.APPROVED);
+
+  useEffect(() => {
+    async function loadReportData() {
+      try {
+        setLoading(true);
+        const [allGoals, allUsers] = await Promise.all([
+          goalsService.getAllGoals(),
+          usersService.getAllUsers()
+        ]);
+
+        // Calculate stats for completion dashboard
+        const completionStats = QUARTERS.map(q => {
+          const approved = allGoals.filter(g => g.status === GOAL_STATUS.APPROVED);
+          const completed = approved.filter(g => {
+            const cis = g.check_ins || [];
+            if (Array.isArray(cis)) return cis.some(ci => ci.quarter === q && ci.status === 'completed');
+            return cis[q]?.status === 'completed';
+          }).length;
+          return { quarter: q, completed, total: approved.length, pct: approved.length > 0 ? Math.round((completed / approved.length) * 100) : 0 };
+        });
+
+        setData({ goals: allGoals, users: allUsers, completionStats });
+      } catch (err) {
+        console.error('Error loading report data:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadReportData();
+  }, []);
+
+  const { goals, users, completionStats } = data;
+  const approvedGoals = goals.filter(g => g.status === GOAL_STATUS.APPROVED);
+
+  // ── Real CSV export helpers ──
+  function buildAchievementCSV() {
+    const rows = [['Employee', 'Goal ID', 'Title', 'Thrust Area', 'UoM', 'Target', 'Weightage', 'Q1 Planned', 'Q1 Actual', 'Q1 Score', 'Q2 Planned', 'Q2 Actual', 'Q2 Score', 'Status']];
+    goals.forEach(goal => {
+      const user = users.find(u => u.id === goal.employee_id);
+      const cis = goal.check_ins || {};
+      const q1 = Array.isArray(cis) ? cis.find(c => c.quarter === 'Q1') || {} : cis.Q1 || {};
+      const q2 = Array.isArray(cis) ? cis.find(c => c.quarter === 'Q2') || {} : cis.Q2 || {};
+      const q1Score = computeProgressScore(goal, q1);
+      const q2Score = computeProgressScore(goal, q2);
+      rows.push([
+        user?.name || '',
+        goal.id,
+        `"${goal.title}"`,
+        goal.thrust_area,
+        goal.unit,
+        goal.target,
+        `${goal.weightage}%`,
+        q1.planned || '',
+        q1.actual || '',
+        q1Score !== null ? `${q1Score}%` : '',
+        q2.planned || '',
+        q2.actual || '',
+        q2Score !== null ? `${q2Score}%` : '',
+        goal.status,
+      ]);
+    });
+    return rows.map(r => r.join(',')).join('\n');
+  }
+
+  function buildCompletionCSV() {
+    const rows = [['Employee', 'Department', 'Total Goals', 'Approved', 'Submitted', 'Draft', 'Completion %']];
+    users.forEach(user => {
+      const userGoals = goals.filter(g => g.employee_id === user.id);
+      const approved = userGoals.filter(g => g.status === GOAL_STATUS.APPROVED);
+      const submitted = userGoals.filter(g => g.status === GOAL_STATUS.SUBMITTED);
+      const draft = userGoals.filter(g => g.status === GOAL_STATUS.DRAFT);
+      
+      const completedCIs = userGoals.reduce((sum, g) => {
+         const cis = g.check_ins || [];
+         if (Array.isArray(cis)) return sum + cis.filter(ci => ci.status === 'completed').length;
+         return sum + Object.values(cis).filter(ci => ci.status === 'completed').length;
+      }, 0);
+
+      const completionPct = approved.length > 0 ? Math.round((completedCIs / (approved.length * 4)) * 100) : 0;
+      rows.push([user.name, user.department, userGoals.length, approved.length, submitted.length, draft.length, `${completionPct}%`]);
+    });
+    return rows.map(r => r.join(',')).join('\n');
+  }
+
+  function downloadCSV(content, filename) {
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+  }
 
   const handleDownload = (id) => {
     setDownloading(id);
@@ -81,19 +120,33 @@ export default function Reports() {
     }, 800);
   };
 
-  const handleUnlock = (goalId) => {
-    setUnlocking(goalId);
-    setTimeout(() => { setUnlockedGoals(prev => [...prev, goalId]); setUnlocking(null); }, 800);
+  const handleUnlock = async (goalId) => {
+    try {
+      setUnlocking(goalId);
+      await goalsService.updateGoal(goalId, { status: GOAL_STATUS.DRAFT });
+      setUnlockedGoals(prev => [...prev, goalId]);
+    } catch (err) {
+      console.error('Unlock failed:', err);
+    } finally {
+      setUnlocking(null);
+    }
   };
 
-  // Completion dashboard data
-  const completionDashboard = QUARTERS.map(q => {
-    const completed = mockGoals.filter(g => g.checkIns?.[q]?.status === 'completed').length;
-    const total = mockGoals.filter(g => g.status === GOAL_STATUS.APPROVED).length;
-    return { quarter: q, completed, total, pct: total > 0 ? Math.round((completed / total) * 100) : 0 };
-  });
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <Loader2 className="h-10 w-10 text-primary-600 animate-spin" />
+        <p className="text-slate-500 font-medium">Generating performance intelligence...</p>
+      </div>
+    );
+  }
 
-
+  const REPORT_TYPES = [
+    { id: 'achievement', label: 'Achievement Report', icon: BarChart3, desc: 'Planned Target vs Actual Achievement for all employees' },
+    { id: 'completion',  label: 'Completion Dashboard', icon: Users, desc: 'Who completed quarterly check-ins' },
+    { id: 'dept_summary', label: 'Department Summary', icon: CheckCircle, desc: 'Aggregated metrics per department' },
+    { id: 'quarterly',  label: 'Quarterly Progress', icon: TrendingUp, desc: 'Q1–Q4 performance trend report' },
+  ];
 
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="show" className="space-y-8 pb-12 max-w-7xl">
@@ -141,7 +194,7 @@ export default function Reports() {
           <p className="text-xs text-slate-500 mt-0.5">Real-time view of quarterly check-in completion</p>
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-0 divide-x divide-y lg:divide-y-0 divide-slate-100">
-          {completionDashboard.map(d => (
+          {completionStats.map(d => (
             <div key={d.quarter} className="p-6 text-center">
               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">{d.quarter} Check-In</p>
               <p className={cn('text-3xl font-extrabold mb-1', d.pct >= 80 ? 'text-emerald-600' : d.pct >= 50 ? 'text-amber-600' : 'text-slate-400')}>{d.pct}%</p>
@@ -156,8 +209,22 @@ export default function Reports() {
 
       {/* Charts */}
       <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <GoalCompletionChart />
-        <EmployeeProgressChart />
+        <GoalCompletionChart data={[
+          { name: 'Approved', value: goals.filter(g => g.status === GOAL_STATUS.APPROVED).length },
+          { name: 'Submitted', value: goals.filter(g => g.status === GOAL_STATUS.SUBMITTED).length },
+          { name: 'Draft', value: goals.filter(g => g.status === GOAL_STATUS.DRAFT).length },
+          { name: 'Rejected', value: goals.filter(g => g.status === GOAL_STATUS.REJECTED).length },
+        ]} />
+        <EmployeeProgressChart data={users.map(u => {
+           const userGoals = goals.filter(g => g.employee_id === u.id);
+           const approved = userGoals.filter(g => g.status === GOAL_STATUS.APPROVED);
+           const completed = userGoals.reduce((sum, g) => {
+             const cis = g.check_ins || [];
+             if (Array.isArray(cis)) return sum + cis.filter(ci => ci.status === 'completed').length;
+             return sum + Object.values(cis).filter(ci => ci.status === 'completed').length;
+           }, 0);
+           return { name: u.name, completion: approved.length > 0 ? Math.round((completed / (approved.length * 4)) * 100) : 0 };
+        })} />
       </motion.div>
 
       {/* Planned vs Actual Achievement Table */}
@@ -183,10 +250,11 @@ export default function Reports() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {mockGoals.filter(g => g.status === GOAL_STATUS.APPROVED).slice(0, 8).map(goal => {
-                const user = mockUsers.find(u => u.id === goal.employeeId);
-                const q1 = goal.checkIns?.Q1 || {};
-                const q2 = goal.checkIns?.Q2 || {};
+              {approvedGoals.slice(0, 8).map(goal => {
+                const user = users.find(u => u.id === goal.employee_id);
+                const cis = goal.check_ins || {};
+                const q1 = Array.isArray(cis) ? cis.find(c => c.quarter === 'Q1') || {} : cis.Q1 || {};
+                const q2 = Array.isArray(cis) ? cis.find(c => c.quarter === 'Q2') || {} : cis.Q2 || {};
                 const s1 = computeProgressScore(goal, q1);
                 const s2 = computeProgressScore(goal, q2);
                 const scoreClass = (s) => s >= 80 ? 'text-emerald-700 bg-emerald-50' : s >= 50 ? 'text-amber-700 bg-amber-50' : 'text-rose-700 bg-rose-50';
@@ -194,7 +262,7 @@ export default function Reports() {
                   <tr key={goal.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <div className="h-7 w-7 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 text-white text-[10px] font-bold flex items-center justify-center">{user?.avatar}</div>
+                        <div className="h-7 w-7 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 text-white text-[10px] font-bold flex items-center justify-center">{user?.avatar || (user?.name ? user.name[0] : '?')}</div>
                         <span className="text-xs font-semibold text-slate-700 whitespace-nowrap">{user?.name}</span>
                       </div>
                     </td>
@@ -222,14 +290,14 @@ export default function Reports() {
         </div>
         <div className="divide-y divide-slate-50">
           {approvedGoals.slice(0, 5).map((goal) => {
-            const emp = mockUsers.find(u => u.id === goal.employeeId);
+            const emp = users.find(u => u.id === goal.employee_id);
             const isUnlocked = unlockedGoals.includes(goal.id);
             return (
               <div key={goal.id} className="flex items-center gap-4 px-6 py-4 hover:bg-slate-50 transition-colors">
                 <div className="flex-1">
                   <p className="text-sm font-bold text-slate-700">{goal.title}</p>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    <span className="text-primary-600 font-medium">{emp?.name}</span> · {goal.thrustArea} · <span className="text-primary-600">{goal.weightage}%</span>
+                    <span className="text-primary-600 font-medium">{emp?.name}</span> · {goal.thrust_area} · <span className="text-primary-600">{goal.weightage}%</span>
                   </p>
                 </div>
                 {isUnlocked ? (

@@ -1,10 +1,13 @@
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine
 } from 'recharts';
-import { quarterlyData } from '../../data/mockGoals';
-
-export default function QuarterlyTrendChart({ data }) {
-  const chartData = data || quarterlyData;
+export default function QuarterlyTrendChart({ data = [] }) {
+  const chartData = data.length > 0 ? data : [
+    { quarter: 'Q1', completion: 0, avg: 0 },
+    { quarter: 'Q2', completion: 0, avg: 0 },
+    { quarter: 'Q3', completion: 0, avg: 0 },
+    { quarter: 'Q4', completion: 0, avg: 0 },
+  ];
 
   return (
     <div className="card p-5">

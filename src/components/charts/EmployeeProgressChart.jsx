@@ -1,15 +1,13 @@
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
 } from 'recharts';
-import { teamProgressData } from '../../data/mockGoals';
-
 // Use neon colors
 const getColor = (v) => v >= 75 ? '#00e5ff' : v >= 50 ? '#b388ff' : '#ff4081';
 
-export default function EmployeeProgressChart({ data }) {
-  const chartData = (data || teamProgressData).map((d) => ({
-    name: d.name.split(' ')[0],
-    completion: d.completion,
+export default function EmployeeProgressChart({ data = [] }) {
+  const chartData = data.map((d) => ({
+    name: d.name ? d.name.split(' ')[0] : 'N/A',
+    completion: d.completion || 0,
   }));
 
   return (

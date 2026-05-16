@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { mockAuditLogs } from '../../data/mockAuditLogs';
+import { useState, useEffect } from 'react';
+import { auditService } from '../../lib/services';
 import { cn } from '../../lib/utils';
-import { Activity, Search, AlertTriangle, XCircle, CheckCircle } from 'lucide-react';
+import { Activity, Search, AlertTriangle, XCircle, CheckCircle, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const SEVERITY_CONFIG = {
@@ -21,16 +21,34 @@ const itemVariants = {
 };
 
 export default function AuditLogs() {
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterSeverity, setFilterSeverity] = useState('all');
   const [filterRole, setFilterRole] = useState('all');
   const [page, setPage] = useState(1);
-  const PER_PAGE = 8;
+  const PER_PAGE = 10;
 
-  const filtered = mockAuditLogs.filter((log) => {
-    const matchSearch = log.actor.toLowerCase().includes(search.toLowerCase()) ||
-      log.action.toLowerCase().includes(search.toLowerCase()) ||
-      log.details.toLowerCase().includes(search.toLowerCase());
+  useEffect(() => {
+    loadLogs();
+  }, []);
+
+  const loadLogs = async () => {
+    try {
+      setLoading(true);
+      const data = await auditService.getRecentLogs(100); // Get more for client-side filtering
+      setLogs(data);
+    } catch (error) {
+      console.error('Failed to load audit logs:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filtered = logs.filter((log) => {
+    const matchSearch = (log.actor || '').toLowerCase().includes(search.toLowerCase()) ||
+      (log.action || '').toLowerCase().includes(search.toLowerCase()) ||
+      (log.details || '').toLowerCase().includes(search.toLowerCase());
     const matchSev = filterSeverity === 'all' || log.severity === filterSeverity;
     const matchRole = filterRole === 'all' || log.actorRole === filterRole;
     return matchSearch && matchSev && matchRole;
@@ -45,6 +63,15 @@ export default function AuditLogs() {
       ' · ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   };
 
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-3">
+        <Loader2 className="h-8 w-8 text-primary-600 animate-spin" />
+        <p className="text-slate-500 font-medium">Fetching system audit trail...</p>
+      </div>
+    );
+  }
+
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="show" className="space-y-6 pb-12 max-w-6xl">
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
@@ -53,7 +80,7 @@ export default function AuditLogs() {
             <Activity className="h-3 w-3 text-primary-600" /> System Monitor
           </div>
           <h1 className="text-3xl font-bold text-slate-900 tracking-tight mb-2">Audit Logs</h1>
-          <p className="text-slate-500 font-medium">{mockAuditLogs.length} total entries <span className="mx-2 text-slate-600">|</span> FY2026</p>
+          <p className="text-slate-500 font-medium">{logs.length} total entries <span className="mx-2 text-slate-600">|</span> FY2026</p>
         </div>
       </motion.div>
 

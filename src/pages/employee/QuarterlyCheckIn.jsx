@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { mockGoals, CHECK_IN_STATUS, computeProgressScore } from '../../data/mockGoals';
+import { GOAL_STATUS, CHECK_IN_STATUS, computeProgressScore } from '../../lib/constants';
+import { goalsService } from '../../lib/services';
 import { cn } from '../../lib/utils';
 import {
   CalendarCheck, Save, CheckCircle2,
-  Info, Calendar, Lock,
+  Info, Calendar, Lock, Loader2,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -60,16 +61,47 @@ function isWindowOpen(quarter) {
 export default function QuarterlyCheckIn() {
   const { currentUser } = useAuth();
   const [activeQ, setActiveQ] = useState('Q1');
-  const [checkIns, setCheckIns] = useState(() => {
-    const goals = mockGoals.filter((g) => g.employeeId === currentUser?.id);
-    const state = {};
-    goals.forEach((g) => { state[g.id] = { ...g.checkIns }; });
-    return state;
-  });
+  const [goals, setGoals] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [checkIns, setCheckIns] = useState({});
   const [saved, setSaved] = useState(false);
 
-  const goals = mockGoals.filter((g) => g.employeeId === currentUser?.id);
-  const windowOpen = isWindowOpen(activeQ);
+  useEffect(() => {
+    if (currentUser?.id) {
+      loadGoals();
+    }
+  }, [currentUser]);
+
+  const loadGoals = async () => {
+    try {
+      setLoading(true);
+      const data = await goalsService.getEmployeeGoals(currentUser.id);
+      setGoals(data);
+      
+      // Initialize checkIns state from fetched data
+      const state = {};
+      data.forEach(goal => {
+        const qData = {};
+        // Map check_ins array from DB to the component's expected format
+        (goal.check_ins || []).forEach(ci => {
+          qData[ci.quarter] = {
+            id: ci.id,
+            status: ci.status,
+            planned: ci.planned_value,
+            actual: ci.actual_value,
+            notes: ci.notes
+          };
+        });
+        state[goal.id] = qData;
+      });
+      setCheckIns(state);
+    } catch (error) {
+      console.error('Failed to load goals:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const updateCheckIn = (goalId, quarter, field, value) => {
     setCheckIns((prev) => ({
@@ -81,10 +113,54 @@ export default function QuarterlyCheckIn() {
     }));
   };
 
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      
+      // Collect all check-ins for the active quarter that have been modified
+      const updates = [];
+      goals.forEach(goal => {
+        const ci = checkIns[goal.id]?.[activeQ];
+        if (ci) {
+          updates.push({
+            id: ci.id, // Supabase will upsert if ID exists
+            goal_id: goal.id,
+            employee_id: currentUser.id,
+            quarter: activeQ,
+            status: ci.status || CHECK_IN_STATUS.NOT_STARTED,
+            planned_value: ci.planned,
+            actual_value: ci.actual,
+            notes: ci.notes,
+            timestamp: new Date().toISOString()
+          });
+        }
+      });
+
+      // Batch update check-ins
+      for (const update of updates) {
+        await goalsService.submitCheckIn(update);
+      }
+
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+      loadGoals(); // Refresh data
+    } catch (error) {
+      console.error('Failed to save check-ins:', error);
+    } finally {
+      setSaving(false);
+    }
   };
+
+  const windowOpen = isWindowOpen(activeQ);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-3">
+        <Loader2 className="h-8 w-8 text-primary-600 animate-spin" />
+        <p className="text-slate-500 font-medium">Loading your performance cycle...</p>
+      </div>
+    );
+  }
 
   // Quarter summary stats
   const getQStats = (q) => {

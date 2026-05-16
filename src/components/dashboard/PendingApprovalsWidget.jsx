@@ -1,21 +1,18 @@
-import { Clock, CheckCircle, XCircle, ChevronRight } from 'lucide-react';
-import { mockGoals, GOAL_STATUS } from '../../data/mockGoals';
-import { mockUsers } from '../../data/mockUsers';
+import { Clock, CheckCircle, ChevronRight } from 'lucide-react';
+import { GOAL_STATUS } from '../../lib/constants';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 
-export default function PendingApprovalsWidget({ managerId }) {
+export default function PendingApprovalsWidget({ members, goals }) {
   const navigate = useNavigate();
-  const teamIds = mockUsers.filter((u) => u.managerId === managerId).map((u) => u.id);
-  const pending = mockGoals.filter(
-    (g) => teamIds.includes(g.employeeId) && g.status === GOAL_STATUS.SUBMITTED
-  );
+  
+  const pending = goals.filter(g => g.status === GOAL_STATUS.SUBMITTED);
 
   // Group by employee
   const grouped = {};
   pending.forEach((g) => {
-    if (!grouped[g.employeeId]) grouped[g.employeeId] = [];
-    grouped[g.employeeId].push(g);
+    if (!grouped[g.employee_id]) grouped[g.employee_id] = [];
+    grouped[g.employee_id].push(g);
   });
 
   const entries = Object.entries(grouped);
@@ -52,9 +49,9 @@ export default function PendingApprovalsWidget({ managerId }) {
           <p className="text-xs text-slate-500 mt-1">No pending approvals required.</p>
         </div>
       ) : (
-        <div className="space-y-3 relative z-10">
-          {entries.map(([empId, goals], i) => {
-            const emp = mockUsers.find((u) => u.id === Number(empId));
+        <div className="space-y-3 relative z-10 overflow-y-auto max-h-[400px] pr-2">
+          {entries.map(([empId, empGoals], i) => {
+            const emp = members.find((u) => String(u.id) === String(empId));
             return (
               <motion.div
                 initial={{ opacity: 0, x: 20 }}
@@ -65,11 +62,11 @@ export default function PendingApprovalsWidget({ managerId }) {
                 onClick={() => navigate('/manager/team-goals')}
               >
                 <div className="h-10 w-10 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 text-slate-900 text-xs font-bold flex items-center justify-center flex-shrink-0 shadow-[0_0_15px_rgba(251,191,36,0.4)] group-hover:scale-110 transition-transform">
-                  {emp?.avatar || '?'}
+                  {emp?.avatar || (emp?.name ? emp.name[0] : '?')}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-slate-900 truncate group-hover:text-amber-400 transition-colors">{emp?.name}</p>
-                  <p className="text-xs text-slate-500 font-medium mt-0.5">{goals.length} {goals.length === 1 ? 'goal' : 'goals'} awaiting review</p>
+                  <p className="text-sm font-bold text-slate-900 truncate group-hover:text-amber-400 transition-colors">{emp?.name || 'Unknown'}</p>
+                  <p className="text-xs text-slate-500 font-medium mt-0.5">{empGoals.length} {empGoals.length === 1 ? 'goal' : 'goals'} awaiting review</p>
                 </div>
                 <div className="h-8 w-8 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-amber-400/20 transition-colors">
                   <ChevronRight className="h-4 w-4 text-slate-500 group-hover:text-amber-400 flex-shrink-0 transition-colors" />
