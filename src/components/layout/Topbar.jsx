@@ -67,15 +67,6 @@ export default function Topbar({ breadcrumb }) {
       {/* Right actions */}
       <div className="flex items-center gap-2 lg:gap-3">
 
-        {/* Dark mode toggle */}
-        <button
-          onClick={() => setDarkMode(d => !d)}
-          className="p-2 rounded-full text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-all duration-200"
-          title="Toggle theme"
-        >
-          {darkMode ? <Sun className="h-4.5 w-4.5" /> : <Moon className="h-[18px] w-[18px]" />}
-        </button>
-
         {/* Notifications */}
         <div className="relative" ref={notifRef}>
           <button

@@ -27,11 +27,13 @@ export default function Sidebar({ collapsed, onToggle }) {
       { to: '/employee', icon: LayoutDashboard, label: 'Dashboard' },
       { to: '/employee/goals', icon: Target, label: 'My Goals' },
       { to: '/employee/checkin', icon: CalendarCheck, label: 'Verification Requests' },
+      { to: '/employee/settings', icon: Settings, label: 'Settings' },
     ],
     manager: [
       { to: '/manager', icon: LayoutDashboard, label: 'Dashboard' },
       { to: '/manager/team-goals', icon: Users, label: 'Team Verifications' },
       { to: '/manager/analytics', icon: BarChart3, label: 'Analytics' },
+      { to: '/manager/settings', icon: Settings, label: 'Settings' },
     ],
     admin: [
       { to: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
@@ -40,6 +42,7 @@ export default function Sidebar({ collapsed, onToggle }) {
       { to: '/admin/analytics', icon: BarChart3, label: 'Analytics' },
       { to: '/admin/reports', icon: FileText, label: 'Reports' },
       { to: '/admin/audit', icon: FileText, label: 'Audit Logs' },
+      { to: '/admin/settings', icon: Settings, label: 'Settings' },
     ]
   };
 
@@ -54,14 +57,10 @@ export default function Sidebar({ collapsed, onToggle }) {
       {/* Logo */}
       <div className="h-20 flex items-center px-5 border-b border-slate-200 relative">
         <div className="flex items-center gap-3.5 w-full overflow-hidden">
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center flex-shrink-0 shadow-glow-primary relative overflow-hidden group">
-            <div className="absolute inset-0 bg-white/20 translate-y-[100%] group-hover:translate-y-[0%] transition-transform duration-300 ease-in-out" />
-            <Hexagon className="h-5 w-5 text-slate-900 relative z-10" />
-          </div>
           {!collapsed && (
             <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.3 }} className="flex-1 whitespace-nowrap">
-              <h2 className="text-lg font-bold text-slate-900 tracking-tight">PerformX</h2>
-              <p className="text-[10px] text-primary-600 font-semibold tracking-[0.2em] uppercase">Enterprise</p>
+              <h2 className="text-xl font-bold text-slate-900 tracking-tight">Perform<span className="text-primary-600">X</span></h2>
+              <p className="text-[10px] text-primary-600 font-semibold tracking-[0.2em] uppercase">Enterprise Portal</p>
             </motion.div>
           )}
         </div>
@@ -90,21 +89,7 @@ export default function Sidebar({ collapsed, onToggle }) {
           );
         })}
 
-        <div className="pt-6 mt-6 border-t border-slate-200">
-          {!collapsed && <p className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">System</p>}
-          <NavLink
-            to={`/${currentUser?.role}/settings`}
-            className={({ isActive }) => cn(
-              'sidebar-link group text-slate-500 hover:text-slate-900',
-              isActive && 'active',
-              collapsed && 'justify-center px-0'
-            )}
-            title={collapsed ? "Settings" : undefined}
-          >
-            <Settings className="h-5 w-5 flex-shrink-0 transition-transform duration-300 group-hover:rotate-90 group-[.active]:text-primary-600" />
-            {!collapsed && <span className="truncate font-medium group-[.active]:font-semibold">Settings</span>}
-          </NavLink>
-        </div>
+
       </nav>
 
       {/* User Profile Section */}

@@ -1,8 +1,7 @@
 import { useState } from 'react';
-import { useTheme } from '../context/ThemeContext';
 import { 
-  Moon, Sun, Bell, Shield, User, 
-  Smartphone, Monitor, Languages, 
+  Bell, Shield, User, 
+  Monitor, Languages, 
   CheckCircle2, Info
 } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -22,7 +21,6 @@ const itemVariants = {
 };
 
 export default function Settings() {
-  const { theme, toggle, isDark } = useTheme();
   const [saved, setSaved] = useState(false);
   
   const [notifications, setNotifications] = useState({
@@ -77,48 +75,7 @@ export default function Settings() {
 
         {/* Content Area */}
         <motion.div variants={itemVariants} className="md:col-span-2 space-y-6">
-          {/* Appearance Section */}
-          <section className="card p-6 space-y-6 border-slate-200">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 rounded-lg bg-primary-50 text-primary-600">
-                <Monitor className="h-5 w-5" />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-slate-900">Appearance</h3>
-                <p className="text-sm text-slate-500 font-medium">Customize how PerformX looks on your device</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <button 
-                onClick={() => theme === 'dark' && toggle()}
-                className={cn(
-                  "p-4 rounded-2xl border-2 transition-all duration-300 text-left group",
-                  !isDark ? "border-primary-500 bg-primary-50/30" : "border-slate-100 bg-slate-50 hover:border-slate-200"
-                )}
-              >
-                <div className={cn("h-10 w-10 rounded-xl flex items-center justify-center mb-4 transition-colors", !isDark ? "bg-primary-500 text-white" : "bg-white text-slate-400 group-hover:text-slate-600")}>
-                  <Sun className="h-5 w-5" />
-                </div>
-                <p className="font-bold text-slate-900">Light Mode</p>
-                <p className="text-xs text-slate-500 mt-1">Crisp and clear interface</p>
-              </button>
-
-              <button 
-                onClick={() => theme === 'light' && toggle()}
-                className={cn(
-                  "p-4 rounded-2xl border-2 transition-all duration-300 text-left group",
-                  isDark ? "border-primary-500 bg-primary-50/30" : "border-slate-100 bg-slate-50 hover:border-slate-200"
-                )}
-              >
-                <div className={cn("h-10 w-10 rounded-xl flex items-center justify-center mb-4 transition-colors", isDark ? "bg-primary-500 text-white" : "bg-white text-slate-400 group-hover:text-slate-600")}>
-                  <Moon className="h-5 w-5" />
-                </div>
-                <p className="font-bold text-slate-900">Dark Mode</p>
-                <p className="text-xs text-slate-500 mt-1">Easy on the eyes</p>
-              </button>
-            </div>
-          </section>
+          {/* Notifications Section */}
 
           {/* Notifications Section */}
           <section className="card p-6 space-y-6 border-slate-200">
