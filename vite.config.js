@@ -4,5 +4,7 @@ import react from '@vitejs/plugin-react';
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
-  base: '/Goal-Setting-Portal/', // Required for GitHub Pages
+  // Use '/' on Vercel deployments, otherwise default to repository sub-path for GitHub Pages
+  base: process.env.VERCEL ? '/' : '/Goal-Setting-Portal/',
 });
+
