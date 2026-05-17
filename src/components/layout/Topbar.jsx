@@ -1,9 +1,10 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Bell, LogOut, ChevronDown, User, Moon, Sun } from 'lucide-react';
+import { Bell, LogOut, ChevronDown, User, Moon, Sun, Shuffle } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { cn } from '../../lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
+import { isLive } from '../../lib/supabase';
 
 const ROLE_COLORS = {
   employee: 'bg-gradient-to-br from-primary-400 to-primary-600',
@@ -18,17 +19,26 @@ const ROLE_LABELS = {
 };
 
 export default function Topbar({ breadcrumb }) {
-  const { currentUser, logout } = useAuth();
+  const { currentUser, logout, switchRole } = useAuth();
   const navigate = useNavigate();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [roleSwitcherOpen, setRoleSwitcherOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
   const dropdownRef = useRef(null);
   const notifRef = useRef(null);
+  const roleSwitcherRef = useRef(null);
 
   const handleLogout = () => {
     logout();
     navigate('/login');
+  };
+
+  const handleRoleSwitch = (newRole) => {
+    switchRole(newRole);
+    setRoleSwitcherOpen(false);
+    const redirect = { employee: '/employee', manager: '/manager', admin: '/admin' }[newRole] || '/';
+    navigate(redirect);
   };
 
   useEffect(() => {
@@ -38,6 +48,9 @@ export default function Topbar({ breadcrumb }) {
       }
       if (notifRef.current && !notifRef.current.contains(event.target)) {
         setNotifOpen(false);
+      }
+      if (roleSwitcherRef.current && !roleSwitcherRef.current.contains(event.target)) {
+        setRoleSwitcherOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -66,6 +79,96 @@ export default function Topbar({ breadcrumb }) {
 
       {/* Right actions */}
       <div className="flex items-center gap-2 lg:gap-3">
+        {/* Connection Status */}
+        <div className={cn(
+          "hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-all duration-300",
+          isLive 
+            ? "bg-emerald-50 text-emerald-600 border-emerald-100 shadow-[0_0_15px_rgba(16,185,129,0.1)]" 
+            : "bg-amber-50 text-amber-600 border-amber-100 shadow-[0_0_15px_rgba(245,158,11,0.1)]"
+        )}>
+          <div className={cn(
+            "h-1.5 w-1.5 rounded-full",
+            isLive ? "bg-emerald-500 animate-pulse" : "bg-amber-500"
+          )} />
+          {isLive ? 'Supabase Live' : 'Demo Mode'}
+        </div>
+
+        {/* Global Demo Role Switcher */}
+        <div className="relative" ref={roleSwitcherRef}>
+          <button
+            onClick={() => setRoleSwitcherOpen(o => !o)}
+            className="flex items-center gap-2 px-3 py-1 rounded-full bg-orange-50/70 border border-orange-200/60 hover:bg-orange-100/80 hover:border-orange-300 transition-all duration-200 text-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500/30"
+          >
+            <Shuffle className="h-3.5 w-3.5" />
+            <span className="text-[11px] font-bold tracking-wide hidden md:inline">
+              Persona: <span className="capitalize">{currentUser?.role || 'Guest'}</span>
+            </span>
+            <span className="text-[11px] font-bold tracking-wide md:hidden">
+              <span className="capitalize">{currentUser?.role || 'Guest'}</span>
+            </span>
+            <ChevronDown className={cn(
+              'h-3 w-3 text-orange-500 transition-transform duration-200',
+              roleSwitcherOpen && 'rotate-180'
+            )} />
+          </button>
+
+          <AnimatePresence>
+            {roleSwitcherOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                className="absolute right-0 top-[calc(100%+0.5rem)] w-72 bg-white border border-slate-200 rounded-2xl shadow-lg z-50 overflow-hidden"
+              >
+                <div className="px-4 py-3 bg-gradient-to-r from-orange-50 to-amber-50/50 border-b border-slate-100">
+                  <p className="text-xs font-bold text-orange-800 uppercase tracking-widest">Demo Persona Switcher</p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">Switch roles instantly to test different permissions</p>
+                </div>
+                
+                <div className="p-1.5 space-y-1">
+                  {[
+                    { role: 'employee', name: 'Harshi Singh', desc: 'Senior Analyst (Individual contributor view)', color: 'from-primary-400 to-primary-600', badge: 'bg-primary-50 text-primary-700' },
+                    { role: 'manager', name: 'Janhvi Singh', desc: 'Operations Manager (L1 team goal review)', color: 'from-amber-400 to-orange-500', badge: 'bg-amber-50 text-orange-700' },
+                    { role: 'admin', name: 'Anshu Raj', desc: 'VP Operations (HR compliance & system admin)', color: 'from-rose-400 to-pink-600', badge: 'bg-rose-50 text-rose-700' },
+                  ].map((p) => {
+                    const isSelected = currentUser?.role === p.role;
+                    return (
+                      <button
+                        key={p.role}
+                        onClick={() => handleRoleSwitch(p.role)}
+                        className={cn(
+                          "w-full text-left flex items-start gap-3 p-2.5 rounded-xl transition-all duration-200",
+                          isSelected 
+                            ? "bg-slate-50 border border-slate-200/80 shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)]" 
+                            : "hover:bg-slate-50/70 border border-transparent"
+                        )}
+                      >
+                        {/* Avatar representation */}
+                        <div className={cn(
+                          "h-8 w-8 rounded-full text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0 bg-gradient-to-br shadow-sm",
+                          p.color
+                        )}>
+                          {p.name.split(' ').map(n=>n[0]).join('')}
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-1.5">
+                            <p className="text-xs font-bold text-slate-800 truncate">{p.name}</p>
+                            <span className={cn("text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md", p.badge)}>
+                              {p.role}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-500 leading-normal mt-0.5">{p.desc}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
         {/* Notifications */}
         <div className="relative" ref={notifRef}>

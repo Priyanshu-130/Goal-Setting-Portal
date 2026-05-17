@@ -1,8 +1,3 @@
--- SUPABASE DATABASE SCHEMA
--- PerformX Performance Portal
-
--- 1. PROFILES TABLE
--- Stores user information. Linked to Supabase Auth.
 CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
   name TEXT NOT NULL,
@@ -16,8 +11,6 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 2. GOALS TABLE
--- Stores performance goals for employees.
 CREATE TABLE IF NOT EXISTS public.goals (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   employee_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
@@ -34,8 +27,6 @@ CREATE TABLE IF NOT EXISTS public.goals (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3. CHECK_INS TABLE
--- Stores quarterly progress for each goal.
 CREATE TABLE IF NOT EXISTS public.check_ins (
   goal_id UUID REFERENCES public.goals(id) ON DELETE CASCADE PRIMARY KEY,
   q1 JSONB DEFAULT '{"status": "pending", "value": ""}',
@@ -45,8 +36,6 @@ CREATE TABLE IF NOT EXISTS public.check_ins (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 4. AUDIT LOGS TABLE
--- Stores activity history.
 CREATE TABLE IF NOT EXISTS public.audit_logs (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   action TEXT NOT NULL,
@@ -55,22 +44,17 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
   timestamp TIMESTAMPTZ DEFAULT NOW()
 );
 
--- ENABLE ROW LEVEL SECURITY
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.goals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.check_ins ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
--- RLS POLICIES
-
--- Profiles: Users can read their own profile, managers can read team profiles, admins can read all.
 CREATE POLICY "Profiles are viewable by everyone" ON public.profiles
   FOR SELECT USING (true);
 
 CREATE POLICY "Users can update own profile" ON public.profiles
   FOR UPDATE USING (auth.uid() = id);
 
--- Goals: Employees can view/edit own, managers view team, admins view all.
 CREATE POLICY "Goals are viewable by involved parties" ON public.goals
   FOR SELECT USING (
     auth.uid() = employee_id OR 
@@ -87,16 +71,12 @@ CREATE POLICY "Owners and managers can update goals" ON public.goals
     EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND (role = 'manager' OR role = 'admin'))
   );
 
--- Audit Logs: Viewable by admins, insertable by anyone authenticated.
 CREATE POLICY "Audit logs are viewable by admins" ON public.audit_logs
   FOR SELECT USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
 
 CREATE POLICY "Audit logs can be inserted by authenticated users" ON public.audit_logs
   FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 
--- FUNCTIONS & TRIGGERS
-
--- Automatically create a check-in record when a goal is created
 CREATE OR REPLACE FUNCTION public.handle_new_goal()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -109,7 +89,6 @@ CREATE TRIGGER on_goal_created
   AFTER INSERT ON public.goals
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_goal();
 
--- Update updated_at timestamp
 CREATE OR REPLACE FUNCTION public.handle_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN

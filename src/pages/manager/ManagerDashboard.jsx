@@ -5,14 +5,16 @@ import PendingApprovalsWidget from '../../components/dashboard/PendingApprovalsW
 import EmployeeProgressChart from '../../components/charts/EmployeeProgressChart';
 import { goalsService, usersService } from '../../lib/services';
 import { GOAL_STATUS } from '../../lib/constants';
-import { Users, CheckSquare, Clock, ChevronRight, TrendingUp, Loader2 } from 'lucide-react';
+import { Users, CheckSquare, Clock, ChevronRight, TrendingUp, Loader2, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '../../lib/utils';
 import { motion } from 'framer-motion';
+import EnterpriseExportModal from '../../components/dashboard/EnterpriseExportModal';
 
 export default function ManagerDashboard() {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
+  const [isExportOpen, setIsExportOpen] = useState(false);
   const [teamData, setTeamData] = useState({
     members: [],
     goals: [],
@@ -88,13 +90,21 @@ export default function ManagerDashboard() {
             Managing <strong className="text-slate-900">{members.length} direct reports</strong> for FY2026.
           </p>
         </div>
-        <button
-          onClick={() => navigate('/manager/team-goals')}
-          className="btn-primary flex items-center gap-2 group hidden sm:flex"
-        >
-          <CheckSquare className="h-4 w-4 transition-transform group-hover:scale-110" />
-          Review Pending Goals
-        </button>
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={() => setIsExportOpen(true)}
+            className="flex items-center gap-2 text-xs font-bold px-4 py-2.5 rounded-xl transition-all border border-orange-200 bg-orange-50 hover:bg-orange-600 hover:text-white hover:border-orange-600 text-orange-700 shadow-sm"
+          >
+            <Download className="h-4 w-4" /> Export Team Reports
+          </button>
+          <button
+            onClick={() => navigate('/manager/team-goals')}
+            className="btn-primary flex items-center gap-2 group hidden sm:flex"
+          >
+            <CheckSquare className="h-4 w-4 transition-transform group-hover:scale-110" />
+            Review Pending Goals
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -207,6 +217,7 @@ export default function ManagerDashboard() {
           </table>
         </div>
       </div>
+      <EnterpriseExportModal isOpen={isExportOpen} onClose={() => setIsExportOpen(false)} />
     </motion.div>
   );
 }

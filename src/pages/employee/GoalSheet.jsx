@@ -105,6 +105,15 @@ export default function GoalSheet() {
   const handleSave = async () => {
     try {
       setIsSubmitting(true);
+      // Check which goals are new vs updated to emit correct audit logs
+      for (const goal of goals) {
+        if (goal.isNew || !goal.id) {
+          await auditService.logAction('GOAL_CREATED', currentUser.name, `Created goal "${goal.title || 'Untitled Goal'}" as draft`);
+        } else {
+          await auditService.logAction('GOAL_UPDATED', currentUser.name, `Updated goal "${goal.title || 'Untitled Goal'}"`);
+        }
+      }
+
       // Clean internal flags before saving
       const goalsToSave = goals.map(({ isNew, ...g }) => g);
       await goalsService.upsertGoals(goalsToSave);
@@ -174,9 +183,14 @@ export default function GoalSheet() {
         <div className="flex items-center gap-3">
           {(!import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL.includes('your-project-id')) && (
             <button
-              onClick={() => {
+              onClick={async () => {
                 setGoals(prev => prev.map(g => ({ ...g, status: 'draft' })));
                 setErrors({});
+                try {
+                  await auditService.logAction('GOAL_UNLOCKED', currentUser.name, 'Unlocked goal sheet for FY2026 performance cycle');
+                } catch (e) {
+                  console.error('Audit log failed:', e);
+                }
               }}
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-600 text-sm font-bold hover:bg-amber-500/20 transition-all"
             >

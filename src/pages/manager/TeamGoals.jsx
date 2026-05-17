@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { goalsService, usersService } from '../../lib/services';
+import { goalsService, usersService, auditService } from '../../lib/services';
 import { GOAL_STATUS, THRUST_AREAS, computeProgressScore } from '../../lib/constants';
 import StatusBadge from '../../components/shared/StatusBadge';
 import { cn } from '../../lib/utils';
@@ -84,6 +84,15 @@ export default function TeamGoals() {
       }));
       
       const created = await goalsService.upsertGoals(newGoals);
+      const recipientNames = team
+        .filter(m => sharedGoalForm.employeeIds.includes(m.id))
+        .map(m => m.name)
+        .join(', ');
+      try {
+        await auditService.logAction('GOAL_APPROVED', currentUser.name, `Distributed shared KPI "${sharedGoalForm.title}" to [${recipientNames}]`);
+      } catch (e) {
+        console.error('Audit log failed:', e);
+      }
       setGoals(prev => [...prev, ...created]);
       setShowSharedGoalModal(false);
       setSharedGoalForm({ title: '', description: '', thrustArea: 'Financial', target: '', weightage: 10, employeeIds: [] });
@@ -107,6 +116,26 @@ export default function TeamGoals() {
         status: newStatus, 
         manager_comment: managerComment 
       });
+
+      const goal = goals.find(g => g.id === goalId);
+      const goalTitle = goal ? goal.title : 'Goal';
+      const employeeName = team.find(m => m.id === goal?.employee_id)?.name || 'Employee';
+      
+      let actionType = 'GOAL_APPROVED';
+      let actionMsg = `Approved goal "${goalTitle}" for ${employeeName}`;
+      if (action === 'reject') {
+        actionType = 'GOAL_REJECTED';
+        actionMsg = `Rejected goal "${goalTitle}" for ${employeeName}`;
+      } else if (action === 'rework') {
+        actionType = 'GOAL_REWORK';
+        actionMsg = `Returned goal "${goalTitle}" for rework for ${employeeName}`;
+      }
+      
+      try {
+        await auditService.logAction(actionType, currentUser.name, actionMsg);
+      } catch (e) {
+        console.error('Audit log failed:', e);
+      }
 
       setGoals((prev) => prev.map((g) =>
         g.id === goalId

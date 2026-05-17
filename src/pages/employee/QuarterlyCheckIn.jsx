@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { GOAL_STATUS, CHECK_IN_STATUS, computeProgressScore } from '../../lib/constants';
-import { goalsService } from '../../lib/services';
+import { goalsService, auditService } from '../../lib/services';
 import { cn } from '../../lib/utils';
 import {
   CalendarCheck, Save, CheckCircle2,
@@ -136,9 +136,16 @@ export default function QuarterlyCheckIn() {
         }
       });
 
-      // Batch update check-ins
+      // Batch update check-ins and log actions
       for (const update of updates) {
         await goalsService.submitCheckIn(update);
+        const goal = goals.find(g => g.id === update.goal_id);
+        const goalTitle = goal ? goal.title : 'Goal';
+        try {
+          await auditService.logAction('CHECK_IN_SUBMITTED', currentUser.name, `Submitted ${activeQ} check-in for "${goalTitle}" (${update.status.replace('_', ' ')})`);
+        } catch (e) {
+          console.error('Audit log failed:', e);
+        }
       }
 
       setSaved(true);

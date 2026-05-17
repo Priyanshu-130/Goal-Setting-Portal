@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, Target, AlertTriangle, Activity, ArrowUpRight, TrendingUp, ShieldCheck, FileText, CalendarCheck, Loader2 } from 'lucide-react';
+import { Users, Target, AlertTriangle, Activity, ArrowUpRight, TrendingUp, ShieldCheck, FileText, CalendarCheck, Loader2, Download } from 'lucide-react';
 import GoalCompletionChart from '../../components/charts/GoalCompletionChart';
 import AuditFeed from '../../components/dashboard/AuditFeed';
 import { motion } from 'framer-motion';
@@ -7,6 +7,7 @@ import { goalsService, usersService } from '../../lib/services';
 import { GOAL_STATUS } from '../../lib/constants';
 import { cn } from '../../lib/utils';
 import { useNavigate } from 'react-router-dom';
+import EnterpriseExportModal from '../../components/dashboard/EnterpriseExportModal';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -25,6 +26,7 @@ const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4'];
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
+  const [isExportOpen, setIsExportOpen] = useState(false);
   const [data, setData] = useState({
     goals: [],
     users: [],
@@ -160,6 +162,9 @@ export default function AdminDashboard() {
             </button>
             <button onClick={() => navigate('/admin/reports')} className="btn-secondary flex items-center gap-2 group">
               <FileText className="h-4 w-4 text-slate-500 group-hover:text-slate-900 transition-colors" /> Generate Reports
+            </button>
+            <button onClick={() => setIsExportOpen(true)} className="flex items-center gap-2 text-xs font-bold px-4 py-2.5 rounded-xl transition-all border border-orange-200 bg-orange-50 hover:bg-orange-600 hover:text-white hover:border-orange-600 text-orange-700 shadow-md">
+              <Download className="h-4 w-4" /> Export Enterprise Reports
             </button>
           </div>
         </div>
@@ -315,6 +320,7 @@ export default function AdminDashboard() {
           </div>
         </div>
       </motion.div>
+      <EnterpriseExportModal isOpen={isExportOpen} onClose={() => setIsExportOpen(false)} />
     </motion.div>
   );
 }

@@ -6,7 +6,7 @@ import QuarterlyTrendChart from '../../components/charts/QuarterlyTrendChart';
 import AuditFeed from '../../components/dashboard/AuditFeed';
 import StatusBadge from '../../components/shared/StatusBadge';
 import { goalsService } from '../../lib/services';
-import { GOAL_STATUS, CHECK_IN_STATUS } from '../../lib/constants';
+import { GOAL_STATUS, CHECK_IN_STATUS, computeProgressScore } from '../../lib/constants';
 import { Target, CheckCircle, Clock, TrendingUp, ChevronRight, Zap, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -49,11 +49,14 @@ export default function EmployeeDashboard() {
   const submitted = goals.filter((g) => g.status === GOAL_STATUS.SUBMITTED).length;
 
   const completedCheckins = goals.reduce((sum, g) => {
-    // Assuming checkIns is an object or array returned from Supabase
-    const checkIns = g.check_ins || {};
-    return sum + ['Q1', 'Q2', 'Q3', 'Q4'].filter(
-      (q) => checkIns[q]?.status === CHECK_IN_STATUS.COMPLETED
-    ).length;
+    const cis = g.check_ins || [];
+    if (Array.isArray(cis)) {
+      return sum + cis.filter(c => c.status === CHECK_IN_STATUS.COMPLETED).length;
+    } else {
+      return sum + ['Q1', 'Q2', 'Q3', 'Q4'].filter(
+        (q) => cis[q]?.status === CHECK_IN_STATUS.COMPLETED
+      ).length;
+    }
   }, 0);
   
   const totalCheckins = goals.length * 4;
@@ -64,6 +67,36 @@ export default function EmployeeDashboard() {
     { name: 'Submitted', value: submitted },
     { name: 'Draft',     value: goals.filter(g => g.status === GOAL_STATUS.DRAFT).length },
   ].filter(d => d.value > 0);
+
+  const trendData = ['Q1', 'Q2', 'Q3', 'Q4'].map((q) => {
+    let totalScore = 0;
+    let countedGoals = 0;
+    
+    goals.forEach((goal) => {
+      if (goal.status !== GOAL_STATUS.APPROVED) return;
+      const cis = goal.check_ins || [];
+      const qCheckIn = Array.isArray(cis) 
+        ? cis.find((c) => c.quarter === q) 
+        : cis[q];
+      
+      if (qCheckIn) {
+        const score = computeProgressScore(goal, qCheckIn);
+        if (score !== null) {
+          totalScore += score;
+          countedGoals++;
+        }
+      }
+    });
+
+    const completion = countedGoals > 0 ? Math.round(totalScore / countedGoals) : 0;
+    const benchmarkAvgs = { Q1: 72, Q2: 78, Q3: 83, Q4: 88 };
+    
+    return {
+      quarter: q,
+      completion,
+      avg: benchmarkAvgs[q],
+    };
+  });
 
   if (loading) {
     return (
@@ -126,7 +159,7 @@ export default function EmployeeDashboard() {
           <h2 className="section-title mb-6 flex items-center gap-2.5">
             <div className="w-2 h-2 rounded-full bg-primary-400 shadow-[0_0_10px_rgba(99,102,241,0.8)]" /> Quarterly Performance Trend
           </h2>
-          <QuarterlyTrendChart />
+          <QuarterlyTrendChart data={trendData} />
         </div>
         <div className="card p-6 lg:p-8 shadow-2xl border-slate-200 bg-white/70 backdrop-blur-md">
            <h2 className="section-title mb-6 flex items-center gap-2.5">
@@ -186,7 +219,7 @@ export default function EmployeeDashboard() {
                <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.8)]" /> Recent Activity
             </h3>
           </div>
-          <AuditFeed limit={5} />
+          <AuditFeed limit={5} standalone={true} />
         </div>
       </motion.div>
     </motion.div>

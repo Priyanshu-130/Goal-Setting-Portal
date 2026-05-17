@@ -5,10 +5,11 @@ import GoalCompletionChart from '../../components/charts/GoalCompletionChart';
 import QuarterlyTrendChart from '../../components/charts/QuarterlyTrendChart';
 import StatCard from '../../components/dashboard/StatCard';
 import { goalsService, usersService } from '../../lib/services';
-import { GOAL_STATUS } from '../../lib/constants';
+import { GOAL_STATUS, computeProgressScore } from '../../lib/constants';
 import { cn } from '../../lib/utils';
-import { TrendingUp, Users, Award, BarChart3, Loader2 } from 'lucide-react';
+import { TrendingUp, Users, Award, BarChart3, Loader2, Download, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
+import EnterpriseExportModal from '../../components/dashboard/EnterpriseExportModal';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -22,12 +23,15 @@ const itemVariants = {
 
 export default function PerformanceAnalytics() {
   const { currentUser } = useAuth();
+  const [isExportOpen, setIsExportOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState({
     team: [],
     goals: [],
     stats: { avgComp: 0, topPerformer: null, atRiskCount: 0 },
-    rankings: []
+    rankings: [],
+    statusDistribution: [],
+    teamQuarterlyTrend: []
   });
 
   useEffect(() => {
@@ -39,9 +43,14 @@ export default function PerformanceAnalytics() {
   const loadData = async () => {
     try {
       setLoading(true);
+      const isAdmin = currentUser?.role === 'admin';
       const [teamMembers, allTeamGoals] = await Promise.all([
-        usersService.getTeam(currentUser.id),
-        goalsService.getTeamGoals(currentUser.id)
+        isAdmin 
+          ? usersService.getAllUsers().then(users => users.filter(u => u.role === 'employee'))
+          : usersService.getTeam(currentUser.id),
+        isAdmin 
+          ? goalsService.getAllGoals()
+          : goalsService.getTeamGoals(currentUser.id)
       ]);
 
       // Calculate stats per employee
@@ -50,9 +59,15 @@ export default function PerformanceAnalytics() {
         const approved = memberGoals.filter(g => g.status === GOAL_STATUS.APPROVED).length;
         const submitted = memberGoals.filter(g => g.status === GOAL_STATUS.SUBMITTED).length;
         
-        // Simple completion average (mock logic for now as we don't have historical progression yet)
-        const completion = memberGoals.length > 0 
-          ? Math.round((approved / memberGoals.length) * 100) 
+        // Simple completion average based on real check-in completeness
+        const completedCIs = memberGoals.reduce((sum, g) => {
+          const cis = g.check_ins || [];
+          if (Array.isArray(cis)) return sum + cis.filter(ci => ci.status === 'completed').length;
+          return sum + Object.values(cis).filter(ci => ci.status === 'completed').length;
+        }, 0);
+
+        const completion = approved > 0 
+          ? Math.min(Math.round((completedCIs / (approved * 4)) * 100), 100) 
           : 0;
 
         return {
@@ -75,11 +90,56 @@ export default function PerformanceAnalytics() {
       
       const atRiskCount = rankings.filter((d) => d.completion < 50 && d.goals > 0).length;
 
+      // Dynamic Goal status distribution
+      const approvedCount = allTeamGoals.filter(g => g.status === GOAL_STATUS.APPROVED).length;
+      const submittedCount = allTeamGoals.filter(g => g.status === GOAL_STATUS.SUBMITTED).length;
+      const draftCount = allTeamGoals.filter(g => g.status === GOAL_STATUS.DRAFT).length;
+      const rejectedCount = allTeamGoals.filter(g => g.status === GOAL_STATUS.REJECTED).length;
+
+      const statusDistribution = [
+        { name: 'Approved', value: approvedCount },
+        { name: 'Submitted', value: submittedCount },
+        { name: 'Draft', value: draftCount },
+        { name: 'Rejected', value: rejectedCount },
+      ].filter(d => d.value > 0);
+
+      // Dynamic team quarterly trend
+      const teamQuarterlyTrend = ['Q1', 'Q2', 'Q3', 'Q4'].map((q) => {
+        let totalScore = 0;
+        let countedGoals = 0;
+        
+        allTeamGoals.forEach((goal) => {
+          if (goal.status !== GOAL_STATUS.APPROVED) return;
+          const cis = goal.check_ins || [];
+          const qCheckIn = Array.isArray(cis)
+            ? cis.find((c) => c.quarter === q)
+            : cis[q];
+          
+          if (qCheckIn) {
+            const score = computeProgressScore(goal, qCheckIn);
+            if (score !== null) {
+              totalScore += score;
+              countedGoals++;
+            }
+          }
+        });
+
+        const completion = countedGoals > 0 ? Math.round(totalScore / countedGoals) : 0;
+        
+        return {
+          quarter: q,
+          completion: completion,
+          avg: completion,
+        };
+      });
+
       setData({
         team: teamMembers,
         goals: allTeamGoals,
         stats: { avgComp, topPerformer, atRiskCount },
-        rankings
+        rankings,
+        statusDistribution,
+        teamQuarterlyTrend
       });
     } catch (error) {
       console.error('Failed to load analytics data:', error);
@@ -106,12 +166,20 @@ export default function PerformanceAnalytics() {
       animate="show"
       className="space-y-8 pb-12"
     >
-      <motion.div variants={itemVariants}>
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.03] border border-slate-200 text-xs font-semibold text-[#b388ff] uppercase tracking-widest mb-3">
-          Insights
+      <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+        <div>
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.03] border border-slate-200 text-xs font-semibold text-[#b388ff] uppercase tracking-widest mb-3">
+            Insights
+          </div>
+          <h1 className="page-title text-slate-900">Performance Analytics</h1>
+          <p className="text-slate-500 text-sm mt-2 font-medium tracking-wide">Team-wide performance insights · FY2026</p>
         </div>
-        <h1 className="page-title text-slate-900">Performance Analytics</h1>
-        <p className="text-slate-500 text-sm mt-2 font-medium tracking-wide">Team-wide performance insights · FY2026</p>
+        <button
+          onClick={() => setIsExportOpen(true)}
+          className="flex items-center gap-2 text-xs font-bold px-4 py-2.5 rounded-xl transition-all border border-orange-200 bg-orange-50 hover:bg-orange-600 hover:text-white hover:border-orange-600 text-orange-700 shadow-sm"
+        >
+          <Download className="h-4 w-4" /> Export Team Reports
+        </button>
       </motion.div>
 
       {/* Stats */}
@@ -125,10 +193,10 @@ export default function PerformanceAnalytics() {
       {/* Charts */}
       <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <EmployeeProgressChart data={rankings} />
-        <GoalCompletionChart />
+        <GoalCompletionChart data={data.statusDistribution.length ? data.statusDistribution : undefined} />
       </motion.div>
       <motion.div variants={itemVariants}>
-        <QuarterlyTrendChart />
+        <QuarterlyTrendChart data={data.teamQuarterlyTrend} />
       </motion.div>
 
       {/* Employee Performance Table */}
@@ -193,6 +261,7 @@ export default function PerformanceAnalytics() {
           </table>
         </div>
       </motion.div>
+      <EnterpriseExportModal isOpen={isExportOpen} onClose={() => setIsExportOpen(false)} />
     </motion.div>
   );
 }

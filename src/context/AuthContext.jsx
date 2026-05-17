@@ -4,9 +4,9 @@ import { supabase } from '../lib/supabase';
 const AuthContext = createContext(null);
 
 const MOCK_PROFILES = {
-  'harshi@demo.com': { id: 'demo-emp-1', name: 'Harshi Sharma', role: 'employee', designation: 'Senior Analyst', department: 'Operations', avatar: 'HS' },
+  'harshi@demo.com': { id: 'demo-emp-1', name: 'Harshi Singh', role: 'employee', designation: 'Senior Analyst', department: 'Operations', avatar: 'HS' },
   'janhvi@demo.com': { id: 'demo-mgr-1', name: 'Janhvi Singh', role: 'manager', designation: 'Operations Manager', department: 'Operations', avatar: 'JS' },
-  'anshu@demo.com':  { id: 'demo-adm-1', name: 'Anshu Kumari', role: 'admin', designation: 'VP Operations', department: 'Executive', avatar: 'AK' },
+  'anshu@demo.com':  { id: 'demo-adm-1', name: 'Anshu Raj', role: 'admin', designation: 'VP Operations', department: 'Executive', avatar: 'AR' },
 };
 
 export function AuthProvider({ children }) {
@@ -15,6 +15,20 @@ export function AuthProvider({ children }) {
   const [isDemoMode, setIsDemoMode] = useState(false);
 
   useEffect(() => {
+    // Check if there is a saved demo user in localStorage first
+    const savedDemoUser = localStorage.getItem('performx_demo_user');
+    if (savedDemoUser) {
+      try {
+        const parsedUser = JSON.parse(savedDemoUser);
+        setCurrentUser(parsedUser);
+        setIsDemoMode(true);
+        setLoading(false);
+        return;
+      } catch (e) {
+        console.error('Failed to parse saved demo user:', e);
+      }
+    }
+
     // Check if Supabase is properly configured
     const isSupabaseConfigured = 
       import.meta.env.VITE_SUPABASE_URL && 
@@ -48,7 +62,10 @@ export function AuthProvider({ children }) {
       if (session) {
         await fetchProfile(session.user.id);
       } else {
-        setCurrentUser(null);
+        // If there's no saved demo user, log out
+        if (!localStorage.getItem('performx_demo_user')) {
+          setCurrentUser(null);
+        }
         setLoading(false);
       }
     });
@@ -68,9 +85,6 @@ export function AuthProvider({ children }) {
       setCurrentUser(data);
     } catch (error) {
       console.error('Error fetching profile:', error.message);
-      // If profile fetch fails but auth succeeded, we might be in an inconsistent state
-      // (Auth user exists but profile record doesn't). 
-      // In this case, we'll remain logged out or show an error.
       setCurrentUser(null);
     } finally {
       setLoading(false);
@@ -83,25 +97,56 @@ export function AuthProvider({ children }) {
       const mockUser = MOCK_PROFILES[email];
       if (mockUser && password === 'demo123') {
         setCurrentUser(mockUser);
+        localStorage.setItem('performx_demo_user', JSON.stringify(mockUser));
         return { user: mockUser };
       }
       throw new Error('Invalid credentials or Demo Mode error');
     }
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    if (error) throw error;
-    return data;
+      if (error) throw error;
+      return data;
+    } catch (err) {
+      console.warn('Supabase auth failed. Attempting Mock Profile fallback:', err.message);
+      const mockUser = MOCK_PROFILES[email];
+      if (mockUser && password === 'demo123') {
+        setCurrentUser(mockUser);
+        localStorage.setItem('performx_demo_user', JSON.stringify(mockUser));
+        return { user: mockUser };
+      }
+      throw err;
+    }
   };
 
   const logout = async () => {
+    localStorage.removeItem('performx_demo_user');
     if (!isDemoMode && supabase) {
-      await supabase.auth.signOut();
+      try {
+        await supabase.auth.signOut();
+      } catch (e) {
+        console.error('Supabase signout error:', e);
+      }
     }
     setCurrentUser(null);
+  };
+
+  const switchRole = (role) => {
+    const roleToEmail = {
+      employee: 'harshi@demo.com',
+      manager: 'janhvi@demo.com',
+      admin: 'anshu@demo.com'
+    };
+    const email = roleToEmail[role];
+    const mockUser = MOCK_PROFILES[email];
+    if (mockUser) {
+      setCurrentUser(mockUser);
+      localStorage.setItem('performx_demo_user', JSON.stringify(mockUser));
+    }
   };
 
   const value = { 
@@ -111,7 +156,8 @@ export function AuthProvider({ children }) {
     loading, 
     isDemoMode,
     isAuthenticated: !!currentUser,
-    userRole: currentUser?.role 
+    userRole: currentUser?.role,
+    switchRole
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

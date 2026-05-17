@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { goalsService, usersService } from '../../lib/services';
 import { GOAL_STATUS, computeProgressScore } from '../../lib/constants';
 import { cn } from '../../lib/utils';
-import { Download, FileText, BarChart3, Users, CheckCircle, TrendingUp, Unlock, Loader2 } from 'lucide-react';
+import { Download, FileText, BarChart3, Users, CheckCircle, TrendingUp, Unlock, Loader2, Sparkles } from 'lucide-react';
 import GoalCompletionChart from '../../components/charts/GoalCompletionChart';
 import EmployeeProgressChart from '../../components/charts/EmployeeProgressChart';
 import { motion } from 'framer-motion';
+import EnterpriseExportModal from '../../components/dashboard/EnterpriseExportModal';
 
 const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4'];
 
@@ -13,6 +14,7 @@ const containerVariants = { hidden: { opacity: 0 }, show: { opacity: 1, transiti
 const itemVariants = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 24 } } };
 
 export default function Reports() {
+  const [isExportOpen, setIsExportOpen] = useState(false);
   const [data, setData] = useState({ goals: [], users: [], completionStats: [] });
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(null);
@@ -150,10 +152,18 @@ export default function Reports() {
 
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="show" className="space-y-8 pb-12 max-w-7xl">
-      <motion.div variants={itemVariants}>
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary-50 border border-primary-200 text-xs font-semibold text-primary-700 uppercase tracking-widest mb-3">Exports</div>
-        <h1 className="text-2xl font-bold text-slate-900">Reports & Export</h1>
-        <p className="text-slate-500 text-sm mt-1 font-medium">Generate and export performance reports for FY2026</p>
+      <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+        <div>
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary-50 border border-primary-200 text-xs font-semibold text-primary-700 uppercase tracking-widest mb-3">Exports</div>
+          <h1 className="text-2xl font-bold text-slate-900">Reports & Export</h1>
+          <p className="text-slate-500 text-sm mt-1 font-medium">Generate and export performance reports for FY2026</p>
+        </div>
+        <button
+          onClick={() => setIsExportOpen(true)}
+          className="flex items-center gap-2 text-xs font-bold px-4 py-2.5 rounded-xl transition-all border border-orange-200 bg-orange-50 hover:bg-orange-600 hover:text-white hover:border-orange-600 text-orange-700 shadow-sm"
+        >
+          <Sparkles className="h-4 w-4" /> Open Advanced Exporter
+        </button>
       </motion.div>
 
       {/* Export Cards */}
@@ -318,6 +328,7 @@ export default function Reports() {
           })}
         </div>
       </motion.div>
+      <EnterpriseExportModal isOpen={isExportOpen} onClose={() => setIsExportOpen(false)} />
     </motion.div>
   );
 }
