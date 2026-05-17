@@ -3,7 +3,7 @@ import { usersService } from '../../lib/services';
 import StatusBadge from '../../components/shared/StatusBadge';
 import RoleBadge from '../../components/shared/RoleBadge';
 import { cn } from '../../lib/utils';
-import { Plus, Search, Pencil, Save, X, UserPlus, Loader2 } from 'lucide-react';
+import { Plus, Search, Pencil, Save, X, UserPlus, Loader2, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function UserManagement() {
@@ -16,6 +16,8 @@ export default function UserManagement() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [newUser, setNewUser] = useState({ name: '', email: '', role: 'employee', department: '', designation: '' });
   const [saved, setSaved] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     loadUsers();
@@ -77,21 +79,55 @@ export default function UserManagement() {
     }
   };
 
+  const openAddModal = () => {
+    setError('');
+    setSubmitting(false);
+    setNewUser({ name: '', email: '', role: 'employee', department: '', designation: '' });
+    setShowAddModal(true);
+  };
+
   const addUser = async () => {
-    if (!newUser.name || !newUser.email) return;
+    setError('');
+    
+    if (!newUser.name.trim()) {
+      setError('Full Name is required. Please fill in the employee\'s name.');
+      return;
+    }
+    if (!newUser.email.trim()) {
+      setError('Email Address is required. The email field cannot be left blank.');
+      return;
+    }
+    
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newUser.email.trim())) {
+      setError('Please provide a valid email format (e.g. sarah.connor@example.com).');
+      return;
+    }
+
+    // Check duplicates locally
+    const emailExists = users.some(u => u.email?.toLowerCase().trim() === newUser.email.toLowerCase().trim());
+    if (emailExists) {
+      setError(`A user with the email address "${newUser.email.trim()}" already exists in the performance portal.`);
+      return;
+    }
+
     try {
+      setSubmitting(true);
       await usersService.createProfile({
         ...newUser,
         avatar: newUser.name.split(' ').map(n => n[0]).join('').toUpperCase(),
         status: 'active',
-        // In a real app, managerId would be selected or defaulted
         manager_id: '43997672-8815-46b5-900f-d48e23f81e62' 
       });
       setShowAddModal(false);
       setNewUser({ name: '', email: '', role: 'employee', department: '', designation: '' });
       loadUsers();
-    } catch (error) {
-      console.error('Failed to add user:', error);
+    } catch (err) {
+      console.error('Failed to add user:', err);
+      setError(err.message || 'An unexpected database error occurred. Please double check that Supabase is connected.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -122,7 +158,7 @@ export default function UserManagement() {
         </div>
         <button
           id="add-user-btn"
-          onClick={() => setShowAddModal(true)}
+          onClick={openAddModal}
           className="btn-primary flex items-center gap-2 shadow-[0_0_20px_rgba(99,102,241,0.3)] hover:shadow-[0_0_30px_rgba(99,102,241,0.5)]"
         >
           <UserPlus className="h-4 w-4" />
@@ -255,6 +291,20 @@ export default function UserManagement() {
                 </button>
               </div>
               <div className="space-y-4 relative z-10 text-slate-700">
+                {error && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-3.5 rounded-2xl bg-rose-50 border border-rose-100 flex items-start gap-2.5 text-rose-600 text-xs font-semibold"
+                  >
+                    <AlertCircle className="h-4.5 w-4.5 text-rose-500 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 text-left">
+                      <p className="font-bold text-rose-800">Cannot Create User</p>
+                      <p className="text-[11px] text-rose-600/90 mt-0.5 font-medium leading-relaxed">{error}</p>
+                    </div>
+                  </motion.div>
+                )}
+
                 <div>
                   <label className="label text-xs font-bold text-slate-500 mb-1 block">Full Name</label>
                   <input className="input py-2 px-3 text-sm rounded-xl border-slate-200 focus:ring-primary-500 w-full" placeholder="e.g. Sarah Connor" value={newUser.name} onChange={e => setNewUser(u => ({ ...u, name: e.target.value }))} />
@@ -284,8 +334,26 @@ export default function UserManagement() {
               </div>
               <div className="flex gap-4 mt-6 relative z-10">
                 <button onClick={() => setShowAddModal(false)} className="btn-secondary py-2.5 rounded-xl text-xs font-bold flex-1">Cancel</button>
-                <button id="confirm-add-user-btn" onClick={addUser} className="btn-primary py-2.5 rounded-xl text-xs font-bold flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-primary-600 to-[#b388ff] border-0 text-white shadow-md">
-                  <Plus className="h-4.5 w-4.5" /> Create User
+                <button 
+                  id="confirm-add-user-btn" 
+                  onClick={addUser} 
+                  disabled={submitting}
+                  className={cn(
+                    "btn-primary py-2.5 rounded-xl text-xs font-bold flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-primary-600 to-[#b388ff] border-0 text-white shadow-md transition-all duration-300",
+                    submitting && "opacity-70 cursor-not-allowed"
+                  )}
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin text-white" />
+                      <span>Creating...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-4.5 w-4.5" />
+                      <span>Create User</span>
+                    </>
+                  )}
                 </button>
               </div>
             </motion.div>

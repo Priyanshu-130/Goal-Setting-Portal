@@ -188,17 +188,18 @@ export default function Topbar({ breadcrumb }) {
         <div className="relative" ref={roleSwitcherRef}>
           <button
             onClick={() => setRoleSwitcherOpen(o => !o)}
-            className="flex items-center gap-2 px-3 py-1 rounded-full bg-orange-50/70 border border-orange-200/60 hover:bg-orange-100/80 hover:border-orange-300 transition-all duration-200 text-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500/30"
+            className="flex items-center gap-2.5 px-4.5 py-2 rounded-full bg-gradient-to-r from-orange-50 to-amber-50 border-2 border-orange-300 hover:from-orange-100 hover:to-amber-100 hover:border-orange-400 transition-all duration-300 text-orange-850 shadow-[0_0_15px_rgba(249,115,22,0.15)] hover:shadow-[0_0_20px_rgba(249,115,22,0.25)] focus:outline-none focus:ring-2 focus:ring-orange-500/30 relative group font-bold animate-pulse hover:animate-none"
+            title="Click to Switch Roles (Employee / Manager / Admin) Instantly!"
           >
-            <Shuffle className="h-3.5 w-3.5" />
-            <span className="text-[11px] font-bold tracking-wide hidden md:inline">
-              Persona: <span className="capitalize">{currentUser?.role || 'Guest'}</span>
+            <Shuffle className="h-3.5 w-3.5 text-orange-600 group-hover:rotate-180 transition-transform duration-500" />
+            <span className="text-xs font-extrabold uppercase tracking-wider hidden md:inline text-orange-900">
+              ⚡ Switch Role: <span className="underline decoration-orange-500 decoration-2 underline-offset-2 capitalize">{currentUser?.role || 'Guest'}</span>
             </span>
-            <span className="text-[11px] font-bold tracking-wide md:hidden">
-              <span className="capitalize">{currentUser?.role || 'Guest'}</span>
+            <span className="text-xs font-extrabold uppercase tracking-wider md:hidden text-orange-900">
+              ⚡ <span className="capitalize">{currentUser?.role || 'Guest'}</span>
             </span>
             <ChevronDown className={cn(
-              'h-3 w-3 text-orange-500 transition-transform duration-200',
+              'h-3.5 w-3.5 text-orange-600 transition-transform duration-300',
               roleSwitcherOpen && 'rotate-180'
             )} />
           </button>
@@ -212,9 +213,9 @@ export default function Topbar({ breadcrumb }) {
                 transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
                 className="absolute right-0 top-[calc(100%+0.5rem)] w-72 bg-white border border-slate-200 rounded-2xl shadow-lg z-50 overflow-hidden"
               >
-                <div className="px-4 py-3 bg-gradient-to-r from-orange-50 to-amber-50/50 border-b border-slate-100">
-                  <p className="text-xs font-bold text-orange-800 uppercase tracking-widest">Demo Persona Switcher</p>
-                  <p className="text-[10px] text-slate-500 mt-0.5">Switch roles instantly to test different permissions</p>
+                <div className="px-4 py-3 bg-gradient-to-r from-orange-100/60 to-amber-55/80 border-b border-slate-100 text-left">
+                  <p className="text-xs font-extrabold text-orange-900 uppercase tracking-wider">✨ Quick Role Switcher</p>
+                  <p className="text-[10px] text-slate-600 mt-0.5 font-semibold leading-relaxed">Select a view below to test different features & dashboards instantly!</p>
                 </div>
                 
                 <div className="p-1.5 space-y-1">
