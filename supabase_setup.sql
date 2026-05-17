@@ -49,32 +49,155 @@ ALTER TABLE public.goals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.check_ins ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Profiles are viewable by everyone" ON public.profiles
-  FOR SELECT USING (true);
+CREATE POLICY "Profiles select policy" ON public.profiles
+  FOR SELECT USING (auth.role() = 'authenticated');
 
-CREATE POLICY "Users can update own profile" ON public.profiles
-  FOR UPDATE USING (auth.uid() = id);
-
-CREATE POLICY "Goals are viewable by involved parties" ON public.goals
-  FOR SELECT USING (
-    auth.uid() = employee_id OR 
-    auth.uid() IN (SELECT id FROM public.profiles WHERE manager_id = auth.uid()) OR
+CREATE POLICY "Profiles insert policy" ON public.profiles
+  FOR INSERT WITH CHECK (
+    auth.uid() = id OR
     EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
   );
 
-CREATE POLICY "Employees can insert own goals" ON public.goals
-  FOR INSERT WITH CHECK (auth.uid() = employee_id);
-
-CREATE POLICY "Owners and managers can update goals" ON public.goals
+CREATE POLICY "Profiles update policy" ON public.profiles
   FOR UPDATE USING (
-    auth.uid() = employee_id OR 
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND (role = 'manager' OR role = 'admin'))
+    auth.uid() = id OR
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
   );
 
-CREATE POLICY "Audit logs are viewable by admins" ON public.audit_logs
-  FOR SELECT USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
+CREATE POLICY "Profiles delete policy" ON public.profiles
+  FOR DELETE USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  );
 
-CREATE POLICY "Audit logs can be inserted by authenticated users" ON public.audit_logs
+CREATE POLICY "Goals select policy" ON public.goals
+  FOR SELECT USING (
+    auth.uid() = employee_id OR
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE public.profiles.id = public.goals.employee_id
+        AND public.profiles.manager_id = auth.uid()
+    ) OR
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE public.profiles.id = auth.uid()
+        AND public.profiles.role = 'admin'
+    )
+  );
+
+CREATE POLICY "Goals insert policy" ON public.goals
+  FOR INSERT WITH CHECK (
+    auth.uid() = employee_id OR
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE public.profiles.id = auth.uid()
+        AND (
+          public.profiles.role = 'admin' OR
+          (public.profiles.role = 'manager' AND public.profiles.id = (
+            SELECT manager_id FROM public.profiles WHERE id = employee_id
+          ))
+        )
+    )
+  );
+
+CREATE POLICY "Goals update policy" ON public.goals
+  FOR UPDATE USING (
+    auth.uid() = employee_id OR
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE public.profiles.id = public.goals.employee_id
+        AND public.profiles.manager_id = auth.uid()
+    ) OR
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE public.profiles.id = auth.uid()
+        AND public.profiles.role = 'admin'
+    )
+  );
+
+CREATE POLICY "Goals delete policy" ON public.goals
+  FOR DELETE USING (
+    auth.uid() = employee_id OR
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE public.profiles.id = auth.uid()
+        AND public.profiles.role = 'admin'
+    )
+  );
+
+CREATE POLICY "Check-ins select policy" ON public.check_ins
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM public.goals
+      WHERE public.goals.id = public.check_ins.goal_id
+        AND public.goals.employee_id = auth.uid()
+    ) OR
+    EXISTS (
+      SELECT 1 FROM public.goals
+      JOIN public.profiles ON public.profiles.id = public.goals.employee_id
+      WHERE public.goals.id = public.check_ins.goal_id
+        AND public.profiles.manager_id = auth.uid()
+    ) OR
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE public.profiles.id = auth.uid()
+        AND public.profiles.role = 'admin'
+    )
+  );
+
+CREATE POLICY "Check-ins insert policy" ON public.check_ins
+  FOR INSERT WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.goals
+      WHERE public.goals.id = goal_id
+        AND (
+          public.goals.employee_id = auth.uid() OR
+          EXISTS (
+            SELECT 1 FROM public.profiles
+            WHERE public.profiles.id = public.goals.employee_id
+              AND public.profiles.manager_id = auth.uid()
+          ) OR
+          EXISTS (
+            SELECT 1 FROM public.profiles
+            WHERE public.profiles.id = auth.uid()
+              AND public.profiles.role = 'admin'
+          )
+        )
+    )
+  );
+
+CREATE POLICY "Check-ins update policy" ON public.check_ins
+  FOR UPDATE USING (
+    EXISTS (
+      SELECT 1 FROM public.goals
+      WHERE public.goals.id = public.check_ins.goal_id
+        AND public.goals.employee_id = auth.uid()
+    ) OR
+    EXISTS (
+      SELECT 1 FROM public.goals
+      JOIN public.profiles ON public.profiles.id = public.goals.employee_id
+      WHERE public.goals.id = public.check_ins.goal_id
+        AND public.profiles.manager_id = auth.uid()
+    ) OR
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE public.profiles.id = auth.uid()
+        AND public.profiles.role = 'admin'
+    )
+  );
+
+CREATE POLICY "Check-ins delete policy" ON public.check_ins
+  FOR DELETE USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE public.profiles.id = auth.uid()
+        AND public.profiles.role = 'admin'
+    )
+  );
+
+CREATE POLICY "Audit logs select policy" ON public.audit_logs
+  FOR SELECT USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Audit logs insert policy" ON public.audit_logs
   FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 
 CREATE OR REPLACE FUNCTION public.handle_new_goal()

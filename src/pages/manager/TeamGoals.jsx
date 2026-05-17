@@ -31,25 +31,77 @@ export default function TeamGoals() {
     title: '', description: '', thrustArea: 'Financial', target: '', weightage: 10, employeeIds: []
   });
 
-  useEffect(() => {
-    async function loadTeamData() {
-      if (!currentUser?.id) return;
-      try {
-        setLoading(true);
-        const [members, teamGoals] = await Promise.all([
-          usersService.getTeamMembers(currentUser.id),
-          goalsService.getManagerTeamGoals(currentUser.id)
-        ]);
-        setTeam(members);
-        setGoals(teamGoals);
-      } catch (err) {
-        console.error('Error loading team goals:', err);
-      } finally {
-        setLoading(false);
-      }
+  const loadTeamData = async () => {
+    if (!currentUser?.id) return;
+    try {
+      setLoading(true);
+      const [members, teamGoals] = await Promise.all([
+        usersService.getTeamMembers(currentUser.id),
+        goalsService.getManagerTeamGoals(currentUser.id)
+      ]);
+      setTeam(members);
+      setGoals(teamGoals);
+
+      // Seed manager feedback comments from DB check-ins
+      const comments = {};
+      teamGoals.forEach(g => {
+        (g.check_ins || []).forEach(ci => {
+          if (ci.manager_feedback) {
+            comments[`${g.id}-${ci.quarter}`] = ci.manager_feedback;
+          }
+        });
+      });
+      setCheckinComments(comments);
+    } catch (err) {
+      console.error('Error loading team goals:', err);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  useEffect(() => {
     loadTeamData();
   }, [currentUser]);
+
+  const handleCheckinAction = async (goal, quarter, action) => {
+    const key = `${goal.id}-${quarter}`;
+    try {
+      setProcessingAction(key);
+      const feedback = checkinComments[key] || '';
+      
+      const cis = goal.check_ins || [];
+      const existingCi = cis.find(c => c.quarter === quarter) || {};
+      
+      const payload = {
+        goal_id: goal.id,
+        quarter: quarter,
+        status: existingCi.status || 'not_started',
+        planned_value: existingCi.planned_value || existingCi.planned || '',
+        actual_value: existingCi.actual_value || existingCi.actual || '',
+        notes: existingCi.notes || '',
+        progress_percentage: existingCi.progress_percentage || 0,
+        manager_feedback: feedback,
+        review_status: action,
+        timestamp: new Date().toISOString()
+      };
+      
+      await goalsService.submitCheckIn(payload);
+      
+      const actionName = action === 'approved' ? 'CHECK_IN_APPROVED' : action === 'rejected' ? 'CHECK_IN_REJECTED' : 'CHECK_IN_UPDATED';
+      const detailStr = action === 'approved' 
+        ? `Approved ${quarter} check-in update for "${goal.title}"`
+        : action === 'rejected'
+          ? `Requested rework on ${quarter} check-in update for "${goal.title}"`
+          : `Saved manager feedback comment on ${quarter} check-in for "${goal.title}"`;
+        
+      await auditService.logAction(actionName, currentUser.name, detailStr);
+      await loadTeamData();
+    } catch (err) {
+      console.error('Failed to submit check-in review:', err);
+    } finally {
+      setProcessingAction(null);
+    }
+  };
 
   const employeeGroups = team.map((member) => ({
     member,
@@ -529,17 +581,58 @@ export default function TeamGoals() {
                         </div>
 
                         {/* Manager Check-in Comment */}
-                        <div>
-                          <label className="label text-xs flex items-center gap-1.5">
-                            <MessageSquare className="h-3 w-3 text-primary-600" /> Manager Check-in Comment
-                          </label>
-                          <textarea
-                            className="input text-sm resize-none"
-                            rows={2}
-                            placeholder="Document your discussion for this quarter..."
-                            value={checkinComments[`${goal.id}-${activeCheckinQ}`] || ''}
-                            onChange={(e) => setCheckinComments(prev => ({ ...prev, [`${goal.id}-${activeCheckinQ}`]: e.target.value }))}
-                          />
+                        <div className="space-y-3">
+                          <div>
+                            <label className="label text-xs flex items-center gap-1.5 font-bold text-slate-500">
+                              <MessageSquare className="h-3.5 w-3.5 text-orange-500" /> Manager Review Comment & Feedback
+                            </label>
+                            <textarea
+                              className="input text-xs resize-none bg-white border-slate-200 focus:border-orange-500 focus:ring-orange-500/10"
+                              rows={2}
+                              placeholder="Add guidance, context, or revision instructions..."
+                              value={checkinComments[`${goal.id}-${activeCheckinQ}`] || ''}
+                              onChange={(e) => setCheckinComments(prev => ({ ...prev, [`${goal.id}-${activeCheckinQ}`]: e.target.value }))}
+                            />
+                          </div>
+
+                          <div className="flex flex-wrap items-center justify-between border-t border-slate-100 pt-3 gap-2">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Review Status:</span>
+                              {ci.review_status === 'approved' ? (
+                                <span className="text-[9px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full uppercase tracking-wide">Approved</span>
+                              ) : ci.review_status === 'rejected' ? (
+                                <span className="text-[9px] font-black text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full uppercase tracking-wide">Rework Requested</span>
+                              ) : ci.review_status === 'pending' ? (
+                                <span className="text-[9px] font-black text-orange-700 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded-full uppercase tracking-wide animate-pulse">Awaiting Review</span>
+                              ) : (
+                                <span className="text-[9px] font-black text-slate-500 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-full uppercase tracking-wide">Draft</span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleCheckinAction(goal, activeCheckinQ, ci.review_status || 'draft')}
+                                disabled={processingAction === `${goal.id}-${activeCheckinQ}`}
+                                className="px-3 py-1.5 border border-slate-200 text-slate-600 hover:text-slate-900 bg-white text-xs font-bold rounded-xl transition-all shadow-sm"
+                              >
+                                Save Comment
+                              </button>
+                              <button
+                                onClick={() => handleCheckinAction(goal, activeCheckinQ, 'approved')}
+                                disabled={processingAction === `${goal.id}-${activeCheckinQ}`}
+                                className="px-3 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-1 border-0"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => handleCheckinAction(goal, activeCheckinQ, 'rejected')}
+                                disabled={processingAction === `${goal.id}-${activeCheckinQ}`}
+                                className="px-3 py-1.5 bg-gradient-to-r from-rose-500 to-red-500 hover:from-rose-600 hover:to-red-600 text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-1 border-0"
+                              >
+                                Request Rework
+                              </button>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     );

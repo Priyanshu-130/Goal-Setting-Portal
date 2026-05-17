@@ -19,7 +19,7 @@ const ROLE_LABELS = {
 };
 
 export default function Topbar({ breadcrumb }) {
-  const { currentUser, logout, switchRole } = useAuth();
+  const { currentUser, logout, switchRole, isDemoMode } = useAuth();
   const navigate = useNavigate();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -82,15 +82,15 @@ export default function Topbar({ breadcrumb }) {
         {/* Connection Status */}
         <div className={cn(
           "hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-all duration-300",
-          isLive 
+          !isDemoMode 
             ? "bg-emerald-50 text-emerald-600 border-emerald-100 shadow-[0_0_15px_rgba(16,185,129,0.1)]" 
             : "bg-amber-50 text-amber-600 border-amber-100 shadow-[0_0_15px_rgba(245,158,11,0.1)]"
         )}>
           <div className={cn(
             "h-1.5 w-1.5 rounded-full",
-            isLive ? "bg-emerald-500 animate-pulse" : "bg-amber-500"
+            !isDemoMode ? "bg-emerald-500 animate-pulse" : "bg-amber-500"
           )} />
-          {isLive ? 'Supabase Live' : 'Demo Mode'}
+          {!isDemoMode ? 'Supabase Live' : 'Demo Mode'}
         </div>
 
         {/* Global Demo Role Switcher */}

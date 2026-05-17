@@ -351,6 +351,83 @@ const saveMockDb = (data) => {
   localStorage.setItem(MOCK_DB_KEY, JSON.stringify(data));
 };
 
+const mapGoalCheckIns = (goals) => {
+  if (!goals) return [];
+  const list = Array.isArray(goals) ? goals : [goals];
+  return list.map(g => {
+    let mappedCis = [];
+    const dbCis = g.check_ins;
+    if (Array.isArray(dbCis) && dbCis.length > 0) {
+      // 1. Check if this is the JSONB columns row from Supabase
+      const first = dbCis[0];
+      if (first && (first.q1 || first.q2 || first.q3 || first.q4)) {
+        ['q1', 'q2', 'q3', 'q4'].forEach(q => {
+          const qUpper = q.toUpperCase();
+          const qObj = first[q];
+          if (qObj) {
+            mappedCis.push({
+              id: `${first.goal_id}-${qUpper}`,
+              goal_id: first.goal_id,
+              quarter: qUpper,
+              status: qObj.status || 'not_started',
+              planned_value: qObj.planned_value || qObj.planned || '',
+              actual_value: qObj.actual_value || qObj.actual || '',
+              notes: qObj.notes || '',
+              progress_percentage: qObj.progress_percentage || 0,
+              manager_feedback: qObj.manager_feedback || qObj.manager_comment || '',
+              review_status: qObj.review_status || 'draft',
+              timestamp: qObj.timestamp || qObj.updated_at || first.updated_at || null
+            });
+          }
+        });
+      } else {
+        // 2. This is a flat check-ins list from mock data
+        mappedCis = dbCis.map(ci => ({
+          id: ci.id || `${ci.goal_id}-${ci.quarter}`,
+          goal_id: ci.goal_id,
+          quarter: ci.quarter,
+          status: ci.status || 'not_started',
+          planned_value: ci.planned_value || ci.planned || '',
+          actual_value: ci.actual_value || ci.actual || '',
+          notes: ci.notes || '',
+          progress_percentage: ci.progress_percentage || 0,
+          manager_feedback: ci.manager_feedback || ci.manager_comment || '',
+          review_status: ci.review_status || 'draft',
+          timestamp: ci.timestamp || ci.updated_at || null
+        }));
+      }
+    } else if (dbCis && typeof dbCis === 'object' && !Array.isArray(dbCis)) {
+      // 3. Direct single row object
+      const row = dbCis;
+      if (row.q1 || row.q2 || row.q3 || row.q4) {
+        ['q1', 'q2', 'q3', 'q4'].forEach(q => {
+          const qUpper = q.toUpperCase();
+          const qObj = row[q];
+          if (qObj) {
+            mappedCis.push({
+              id: `${row.goal_id}-${qUpper}`,
+              goal_id: row.goal_id,
+              quarter: qUpper,
+              status: qObj.status || 'not_started',
+              planned_value: qObj.planned_value || qObj.planned || '',
+              actual_value: qObj.actual_value || qObj.actual || '',
+              notes: qObj.notes || '',
+              progress_percentage: qObj.progress_percentage || 0,
+              manager_feedback: qObj.manager_feedback || qObj.manager_comment || '',
+              review_status: qObj.review_status || 'draft',
+              timestamp: qObj.timestamp || qObj.updated_at || row.updated_at || null
+            });
+          }
+        });
+      }
+    }
+    return {
+      ...g,
+      check_ins: mappedCis
+    };
+  });
+};
+
 /**
  * GOALS SERVICE
  */
@@ -359,10 +436,11 @@ export const goalsService = {
     if (isDemoActive() || (employeeId && employeeId.toString().startsWith('demo-'))) {
       const db = getMockDb();
       const employeeGoals = db.goals.filter(g => g.employee_id === employeeId);
-      return employeeGoals.map(g => ({
+      const mapped = employeeGoals.map(g => ({
         ...g,
         check_ins: db.check_ins.filter(ci => ci.goal_id === g.id)
       }));
+      return mapGoalCheckIns(mapped);
     }
     
     const { data, error } = await supabase
@@ -371,7 +449,7 @@ export const goalsService = {
       .eq('employee_id', employeeId);
 
     if (error) throw error;
-    return data;
+    return mapGoalCheckIns(data);
   },
 
   async getTeamGoals(managerId) {
@@ -380,7 +458,7 @@ export const goalsService = {
       const mid = managerId || 'demo-mgr-1';
       const teamProfiles = db.profiles.filter(p => p.role === 'employee' && p.manager_id === mid);
       const teamIds = teamProfiles.map(p => p.id);
-      return db.goals.filter(g => teamIds.includes(g.employee_id)).map(g => {
+      const mapped = db.goals.filter(g => teamIds.includes(g.employee_id)).map(g => {
         const profile = db.profiles.find(p => p.id === g.employee_id);
         return {
           ...g,
@@ -388,6 +466,7 @@ export const goalsService = {
           check_ins: db.check_ins.filter(ci => ci.goal_id === g.id)
         };
       });
+      return mapGoalCheckIns(mapped);
     }
 
     const { data: team, error: teamError } = await supabase
@@ -404,7 +483,7 @@ export const goalsService = {
       .in('employee_id', teamIds);
 
     if (error) throw error;
-    return data;
+    return mapGoalCheckIns(data);
   },
 
   async getManagerTeamGoals(managerId) {
@@ -414,7 +493,7 @@ export const goalsService = {
   async getAllGoals() {
     if (isDemoActive()) {
       const db = getMockDb();
-      return db.goals.map(g => {
+      const mapped = db.goals.map(g => {
         const profile = db.profiles.find(p => p.id === g.employee_id);
         return {
           ...g,
@@ -422,6 +501,7 @@ export const goalsService = {
           check_ins: db.check_ins.filter(ci => ci.goal_id === g.id)
         };
       });
+      return mapGoalCheckIns(mapped);
     }
 
     const { data, error } = await supabase
@@ -429,7 +509,7 @@ export const goalsService = {
       .select('*, profiles(name, department), check_ins(*)');
 
     if (error) throw error;
-    return data;
+    return mapGoalCheckIns(data);
   },
 
   async createGoal(goalData) {
@@ -475,6 +555,43 @@ export const goalsService = {
   },
 
   async upsertGoals(goals) {
+    if (goals && goals.length > 0) {
+      // 1. Capacity check
+      if (goals.length > 8) {
+        throw new Error('Supabase Operations Rejected: Maximum of 8 goals allowed per employee.');
+      }
+
+      // 2. Weightage & title check
+      const titleCounts = {};
+      let totalW = 0;
+      let hasSubmittedOrApproved = false;
+
+      goals.forEach(g => {
+        if (g.weightage !== undefined && g.weightage !== '') {
+          const w = Number(g.weightage);
+          if (w < 10) {
+            throw new Error(`Supabase Operations Rejected: Minimum weightage per goal is 10%. Goal "${g.title || 'Untitled'}" violates this constraint.`);
+          }
+          totalW += w;
+        }
+        if (g.title?.trim()) {
+          const t = g.title.trim().toLowerCase();
+          titleCounts[t] = (titleCounts[t] || 0) + 1;
+          if (titleCounts[t] > 1) {
+            throw new Error(`Supabase Operations Rejected: Duplicate goal title "${g.title}" detected. Goal titles must be unique.`);
+          }
+        }
+        if (g.status === 'submitted' || g.status === 'approved') {
+          hasSubmittedOrApproved = true;
+        }
+      });
+
+      // On final submission or approval status, enforce exactly 100% total weightage
+      if (hasSubmittedOrApproved && totalW !== 100) {
+        throw new Error(`Supabase Operations Rejected: Submitted/Approved goals require total weightage to equal exactly 100% (currently ${totalW}%).`);
+      }
+    }
+
     if (isDemoActive()) {
       const db = getMockDb();
       goals.forEach(g => {
@@ -499,26 +616,81 @@ export const goalsService = {
     if (isDemoActive()) {
       const db = getMockDb();
       const idx = db.check_ins.findIndex(ci => ci.goal_id === checkInData.goal_id && ci.quarter === checkInData.quarter);
+      const payload = {
+        ...checkInData,
+        planned_value: checkInData.planned_value || checkInData.planned || '',
+        actual_value: checkInData.actual_value || checkInData.actual || '',
+        notes: checkInData.notes || '',
+        review_status: checkInData.review_status || 'draft',
+        manager_feedback: checkInData.manager_feedback || '',
+        timestamp: checkInData.timestamp || new Date().toISOString()
+      };
+      
       if (idx !== -1) {
-        db.check_ins[idx] = { ...db.check_ins[idx], ...checkInData };
+        db.check_ins[idx] = { ...db.check_ins[idx], ...payload };
       } else {
         db.check_ins.push({
-          ...checkInData,
+          ...payload,
           id: checkInData.id || 'c-' + Math.random().toString(36).substr(2, 9)
         });
       }
       saveMockDb(db);
-      return checkInData;
+      return payload;
     }
+
+    const goalId = checkInData.goal_id;
+    const quarterKey = checkInData.quarter.toLowerCase(); // 'q1', 'q2', etc.
+
+    // 1. Fetch current check-in row
+    const { data: existing, error: fetchError } = await supabase
+      .from('check_ins')
+      .select('*')
+      .eq('goal_id', goalId)
+      .maybeSingle();
+
+    if (fetchError) throw fetchError;
+
+    // 2. Build the updated quarter object
+    const quarterData = {
+      status: checkInData.status || 'not_started',
+      planned_value: checkInData.planned_value || checkInData.planned || '',
+      actual_value: checkInData.actual_value || checkInData.actual || '',
+      notes: checkInData.notes || '',
+      progress_percentage: checkInData.progress_percentage || 0,
+      manager_feedback: checkInData.manager_feedback || '',
+      review_status: checkInData.review_status || 'draft',
+      timestamp: checkInData.timestamp || new Date().toISOString()
+    };
+
+    // 3. Prepare the upsert object
+    const upsertData = {
+      goal_id: goalId,
+      [quarterKey]: quarterData,
+      updated_at: new Date().toISOString()
+    };
 
     const { data, error } = await supabase
       .from('check_ins')
-      .upsert([checkInData])
+      .upsert([upsertData])
       .select()
       .single();
 
     if (error) throw error;
-    return data;
+
+    // Return the formatted flat version back to match local state expectations
+    return {
+      id: `${goalId}-${checkInData.quarter.toUpperCase()}`,
+      goal_id: goalId,
+      quarter: checkInData.quarter.toUpperCase(),
+      status: quarterData.status,
+      planned_value: quarterData.planned_value,
+      actual_value: quarterData.actual_value,
+      notes: quarterData.notes,
+      progress_percentage: quarterData.progress_percentage,
+      manager_feedback: quarterData.manager_feedback,
+      review_status: quarterData.review_status,
+      timestamp: quarterData.timestamp
+    };
   }
 };
 

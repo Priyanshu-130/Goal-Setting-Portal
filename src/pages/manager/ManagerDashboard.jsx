@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import { cn } from '../../lib/utils';
 import { motion } from 'framer-motion';
 import EnterpriseExportModal from '../../components/dashboard/EnterpriseExportModal';
+import AuditFeed from '../../components/dashboard/AuditFeed';
 
 export default function ManagerDashboard() {
   const { currentUser } = useAuth();
@@ -128,8 +129,14 @@ export default function ManagerDashboard() {
             }))} />
           </div>
         </div>
-        <div className="flex flex-col">
+        <div className="flex flex-col gap-6">
           <PendingApprovalsWidget members={members} goals={goals} />
+          <div className="card p-6 shadow-2xl border-slate-200 bg-white/70 backdrop-blur-md">
+            <h3 className="section-title flex items-center gap-2.5 mb-6">
+              <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.8)]" /> Team Activity Feed
+            </h3>
+            <AuditFeed limit={3} standalone={true} />
+          </div>
         </div>
       </div>
 

@@ -15,11 +15,11 @@ export const THRUST_AREAS = [
 ];
 
 export const UNIT_OPTIONS = [
-  'Percentage (%)',
-  'Currency ($)',
-  'Number (#)',
-  'Date',
-  'Boolean (Yes/No)'
+  { value: 'percentage', label: 'Percentage (%)', placeholder: 'e.g. 95%' },
+  { value: 'currency', label: 'Currency ($)', placeholder: 'e.g. 50000' },
+  { value: 'numeric', label: 'Number (#)', placeholder: 'e.g. 10' },
+  { value: 'date', label: 'Date', placeholder: 'e.g. 2026-12-31' },
+  { value: 'boolean', label: 'Boolean (Yes/No)', placeholder: 'e.g. Yes' }
 ];
 
 export const computeProgressScore = (goal, checkIn) => {
