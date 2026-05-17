@@ -34,9 +34,18 @@ export default function UserManagement() {
   };
 
   const filtered = users.filter((u) => {
-    const matchSearch = u.name.toLowerCase().includes(search.toLowerCase()) ||
-      u.email.toLowerCase().includes(search.toLowerCase()) ||
-      (u.department || '').toLowerCase().includes(search.toLowerCase());
+    const name = u.name || '';
+    const email = u.email || '';
+    const dept = u.department || '';
+    const role = u.role || '';
+    const designation = u.designation || '';
+
+    const matchSearch = name.toLowerCase().includes(search.toLowerCase()) ||
+      email.toLowerCase().includes(search.toLowerCase()) ||
+      dept.toLowerCase().includes(search.toLowerCase()) ||
+      role.toLowerCase().includes(search.toLowerCase()) ||
+      designation.toLowerCase().includes(search.toLowerCase());
+      
     const matchRole = filterRole === 'all' || u.role === filterRole;
     return matchSearch && matchRole;
   });

@@ -112,8 +112,8 @@ export default function TeamGoals() {
     ...grp,
     goals: grp.goals.filter((g) => {
       const matchFilter = filter === 'all' || g.status === filter;
-      const matchSearch = g.title.toLowerCase().includes(search.toLowerCase()) ||
-        grp.member.name.toLowerCase().includes(search.toLowerCase());
+      const matchSearch = (g.title || '').toLowerCase().includes(search.toLowerCase()) ||
+        (grp.member.name || '').toLowerCase().includes(search.toLowerCase());
       return matchFilter && matchSearch;
     }),
   })).filter((grp) => grp.goals.length > 0 || (search === '' && filter === 'all'));

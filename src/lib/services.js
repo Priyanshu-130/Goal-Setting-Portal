@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 
 // --- Mock Database Helper (LocalStorage Persistence) ---
-const MOCK_DB_KEY = 'performx_mock_db_v2';
+const MOCK_DB_KEY = 'performx_mock_db_v3';
 
 const isDemo = () => {
   return !import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL === 'https://your-project-id.supabase.co';
@@ -64,31 +64,31 @@ const getMockDb = () => {
   ];
 
   const managers = [
-    { id: 'demo-mgr-1', name: 'Janhvi Singh', role: 'manager', status: 'active', designation: 'Operations Manager', department: 'Operations' },
-    { id: 'demo-mgr-2', name: 'Arjun Mehta', role: 'manager', status: 'active', designation: 'Engineering Manager', department: 'Engineering' },
-    { id: 'demo-mgr-3', name: 'Neha Gupta', role: 'manager', status: 'active', designation: 'Product Director', department: 'Product' },
-    { id: 'demo-mgr-4', name: 'Kabir Malhotra', role: 'manager', status: 'active', designation: 'Design Lead', department: 'Design' },
-    { id: 'demo-mgr-5', name: 'Riya Sen', role: 'manager', status: 'active', designation: 'Marketing Manager', department: 'Marketing' },
-    { id: 'demo-mgr-6', name: 'Vikram Malhotra', role: 'manager', status: 'active', designation: 'Sales VP', department: 'Sales' },
-    { id: 'demo-mgr-7', name: 'Aarav Joshi', role: 'manager', status: 'active', designation: 'Customer Success Manager', department: 'Customer Success' },
-    { id: 'demo-mgr-8', name: 'Simran Kaur', role: 'manager', status: 'active', designation: 'HR Manager', department: 'People & Culture' },
-    { id: 'demo-mgr-9', name: 'Amit Patel', role: 'manager', status: 'active', designation: 'Finance Manager', department: 'Finance' },
-    { id: 'demo-mgr-10', name: 'Siddharth Sharma', role: 'manager', status: 'active', designation: 'Security Director', department: 'Security' }
+    { id: 'demo-mgr-1', name: 'Janhvi Singh', role: 'manager', status: 'active', designation: 'Operations Manager', department: 'Operations', email: 'janhvi@demo.com' },
+    { id: 'demo-mgr-2', name: 'Arjun Mehta', role: 'manager', status: 'active', designation: 'Engineering Manager', department: 'Engineering', email: 'arjun@performx.com' },
+    { id: 'demo-mgr-3', name: 'Neha Gupta', role: 'manager', status: 'active', designation: 'Product Director', department: 'Product', email: 'neha@performx.com' },
+    { id: 'demo-mgr-4', name: 'Kabir Malhotra', role: 'manager', status: 'active', designation: 'Design Lead', department: 'Design', email: 'kabir@performx.com' },
+    { id: 'demo-mgr-5', name: 'Riya Sen', role: 'manager', status: 'active', designation: 'Marketing Manager', department: 'Marketing', email: 'riya@performx.com' },
+    { id: 'demo-mgr-6', name: 'Vikram Malhotra', role: 'manager', status: 'active', designation: 'Sales VP', department: 'Sales', email: 'vikram@performx.com' },
+    { id: 'demo-mgr-7', name: 'Aarav Joshi', role: 'manager', status: 'active', designation: 'Customer Success Manager', department: 'Customer Success', email: 'aarav@performx.com' },
+    { id: 'demo-mgr-8', name: 'Simran Kaur', role: 'manager', status: 'active', designation: 'HR Manager', department: 'People & Culture', email: 'simran@performx.com' },
+    { id: 'demo-mgr-9', name: 'Amit Patel', role: 'manager', status: 'active', designation: 'Finance Manager', department: 'Finance', email: 'amit@performx.com' },
+    { id: 'demo-mgr-10', name: 'Siddharth Sharma', role: 'manager', status: 'active', designation: 'Security Director', department: 'Security', email: 'siddharth@performx.com' }
   ];
 
-  const admin = { id: 'demo-adm-1', name: 'Anshu Raj', role: 'admin', status: 'active', designation: 'VP Operations', department: 'Executive' };
+  const admin = { id: 'demo-adm-1', name: 'Anshu Raj', role: 'admin', status: 'active', designation: 'VP Operations', department: 'Executive', email: 'anshu@demo.com' };
 
   // Create profiles array
   const profiles = [admin, ...managers];
 
   // Base core employees
   const coreEmployees = [
-    { id: 'demo-emp-1', name: 'Harshi Singh', role: 'employee', status: 'active', designation: 'Senior Analyst', department: 'Operations', manager_id: 'demo-mgr-1' },
-    { id: 'demo-emp-2', name: 'Rohan Das', role: 'employee', status: 'active', designation: 'Software Developer', department: 'Engineering', manager_id: 'demo-mgr-2' },
-    { id: 'demo-emp-3', name: 'Priyanshu Sharma', role: 'employee', status: 'active', designation: 'UI Engineer', department: 'Engineering', manager_id: 'demo-mgr-2' },
-    { id: 'demo-emp-4', name: 'Anika Roy', role: 'employee', status: 'active', designation: 'Product Specialist', department: 'Product', manager_id: 'demo-mgr-3' },
-    { id: 'demo-emp-5', name: 'Sameer Khan', role: 'employee', status: 'active', designation: 'DevOps Engineer', department: 'Engineering', manager_id: 'demo-mgr-2' },
-    { id: 'demo-emp-6', name: 'Tanya Goel', role: 'employee', status: 'active', designation: 'QA Analyst', department: 'Security', manager_id: 'demo-mgr-10' }
+    { id: 'demo-emp-1', name: 'Harshi Singh', role: 'employee', status: 'active', designation: 'Senior Analyst', department: 'Operations', manager_id: 'demo-mgr-1', email: 'harshi@demo.com' },
+    { id: 'demo-emp-2', name: 'Rohan Das', role: 'employee', status: 'active', designation: 'Software Developer', department: 'Engineering', manager_id: 'demo-mgr-2', email: 'rohan@performx.com' },
+    { id: 'demo-emp-3', name: 'Priyanshu Sharma', role: 'employee', status: 'active', designation: 'UI Engineer', department: 'Engineering', manager_id: 'demo-mgr-2', email: 'priyanshu@performx.com' },
+    { id: 'demo-emp-4', name: 'Anika Roy', role: 'employee', status: 'active', designation: 'Product Specialist', department: 'Product', manager_id: 'demo-mgr-3', email: 'anika@performx.com' },
+    { id: 'demo-emp-5', name: 'Sameer Khan', role: 'employee', status: 'active', designation: 'DevOps Engineer', department: 'Engineering', manager_id: 'demo-mgr-2', email: 'sameer@performx.com' },
+    { id: 'demo-emp-6', name: 'Tanya Goel', role: 'employee', status: 'active', designation: 'QA Analyst', department: 'Security', manager_id: 'demo-mgr-10', email: 'tanya@performx.com' }
   ];
 
   const employees = [];
@@ -132,6 +132,7 @@ const getMockDb = () => {
         designation,
         department: manager.department,
         manager_id: manager.id,
+        email: `${fName.toLowerCase()}.${lName.toLowerCase()}@performx.com`,
         avatar: name.split(' ').map(n => n[0]).join('').toUpperCase()
       });
     }
