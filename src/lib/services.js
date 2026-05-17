@@ -557,8 +557,10 @@ export const goalsService = {
 
   async upsertGoals(goals) {
     if (goals && goals.length > 0) {
-      // 1. Capacity check
-      if (goals.length > 8) {
+      const isSharedPush = goals.some(g => g.is_shared);
+
+      // 1. Capacity check (only for single employee sheet edits)
+      if (!isSharedPush && goals.length > 8) {
         throw new Error('Supabase Operations Rejected: Maximum of 8 goals allowed per employee.');
       }
 
@@ -570,12 +572,12 @@ export const goalsService = {
       goals.forEach(g => {
         if (g.weightage !== undefined && g.weightage !== '') {
           const w = Number(g.weightage);
-          if (w < 10) {
+          if (w < 10 && !isSharedPush) {
             throw new Error(`Supabase Operations Rejected: Minimum weightage per goal is 10%. Goal "${g.title || 'Untitled'}" violates this constraint.`);
           }
           totalW += w;
         }
-        if (g.title?.trim()) {
+        if (g.title?.trim() && !isSharedPush) {
           const t = g.title.trim().toLowerCase();
           titleCounts[t] = (titleCounts[t] || 0) + 1;
           if (titleCounts[t] > 1) {
@@ -587,8 +589,8 @@ export const goalsService = {
         }
       });
 
-      // On final submission or approval status, enforce exactly 100% total weightage
-      if (hasSubmittedOrApproved && totalW !== 100) {
+      // On final submission or approval status, enforce exactly 100% total weightage (skip for shared pushes)
+      if (hasSubmittedOrApproved && totalW !== 100 && !isSharedPush) {
         throw new Error(`Supabase Operations Rejected: Submitted/Approved goals require total weightage to equal exactly 100% (currently ${totalW}%).`);
       }
     }

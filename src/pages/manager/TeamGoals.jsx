@@ -6,7 +6,8 @@ import StatusBadge from '../../components/shared/StatusBadge';
 import { cn } from '../../lib/utils';
 import {
   ChevronDown, ChevronUp, CheckCircle, XCircle, MessageSquare,
-  Save, Search, ShieldCheck, RotateCcw, CalendarCheck, Loader2
+  Save, Search, ShieldCheck, RotateCcw, CalendarCheck, Loader2,
+  AlertTriangle, Info, X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -30,6 +31,7 @@ export default function TeamGoals() {
   const [sharedGoalForm, setSharedGoalForm] = useState({
     title: '', description: '', thrustArea: 'Financial', target: '', weightage: 10, employeeIds: []
   });
+  const [toast, setToast] = useState(null);
 
   const loadTeamData = async () => {
     if (!currentUser?.id) return;
@@ -148,8 +150,21 @@ export default function TeamGoals() {
       setGoals(prev => [...prev, ...created]);
       setShowSharedGoalModal(false);
       setSharedGoalForm({ title: '', description: '', thrustArea: 'Financial', target: '', weightage: 10, employeeIds: [] });
+      
+      setToast({
+        type: 'success',
+        title: 'KPI Distributed Successfully',
+        desc: `Shared goal "${newGoals[0].title}" pushed to ${newGoals.length} team members.`
+      });
+      setTimeout(() => setToast(null), 5000);
     } catch (err) {
       console.error('Push shared goal failed:', err);
+      setToast({
+        type: 'error',
+        title: 'Distribution Failed',
+        desc: err.message || 'Could not push this goal to selected team members.'
+      });
+      setTimeout(() => setToast(null), 6000);
     } finally {
       setProcessingAction(null);
     }
@@ -239,6 +254,43 @@ export default function TeamGoals() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6 pb-12 max-w-5xl">
+      {/* Toast Feed */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: -20, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9, y: -10 }}
+            className={cn(
+              "fixed top-6 right-6 z-[100] w-96 bg-white border-l-4 rounded-2xl shadow-2xl p-4 flex gap-3.5 backdrop-blur-md border border-slate-100",
+              toast.type === 'success' ? 'border-emerald-500' :
+              toast.type === 'error' ? 'border-red-500' :
+              toast.type === 'warning' ? 'border-orange-500' :
+              'border-blue-500'
+            )}
+          >
+            <div className={cn(
+              "p-2 rounded-xl self-start flex-shrink-0",
+              toast.type === 'success' ? 'bg-emerald-50/50 text-emerald-600' :
+              toast.type === 'error' ? 'bg-red-50/50 text-red-600' :
+              toast.type === 'warning' ? 'bg-orange-50/50 text-orange-600' :
+              'bg-blue-50/50 text-blue-600'
+            )}>
+              {toast.type === 'success' && <CheckCircle className="h-5 w-5" />}
+              {toast.type === 'error' && <XCircle className="h-5 w-5" />}
+              {toast.type === 'warning' && <AlertTriangle className="h-5 w-5" />}
+              {toast.type === 'info' && <Info className="h-5 w-5" />}
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-extrabold text-slate-900">{toast.title}</p>
+              <p className="text-xs text-slate-500 font-semibold mt-0.5 leading-relaxed">{toast.desc}</p>
+            </div>
+            <button onClick={() => setToast(null)} className="text-slate-400 hover:text-slate-600 transition-colors self-start p-0.5 rounded-lg hover:bg-slate-50">
+              <X className="h-4 w-4" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
@@ -647,12 +699,12 @@ export default function TeamGoals() {
       {/* ── SHARED GOAL MODAL ── */}
       <AnimatePresence>
         {showSharedGoalModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-2 sm:pt-4 bg-slate-900/50 backdrop-blur-sm overflow-y-auto">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]"
+              className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col my-2 max-h-[95vh]"
             >
               <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                 <div>

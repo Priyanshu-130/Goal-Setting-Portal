@@ -418,6 +418,7 @@ export default function Topbar({ breadcrumb }) {
               </motion.div>
             )}
           </AnimatePresence>
+        </div>
       {/* NOTIFICATION DETAILS DIALOG */}
       <AnimatePresence>
         {activeNotification && (
