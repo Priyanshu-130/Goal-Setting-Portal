@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 
 // --- Mock Database Helper (LocalStorage Persistence) ---
-const MOCK_DB_KEY = 'performx_mock_db';
+const MOCK_DB_KEY = 'performx_mock_db_v2';
 
 const isDemo = () => {
   return !import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL === 'https://your-project-id.supabase.co';
@@ -81,8 +81,8 @@ const getMockDb = () => {
   // Create profiles array
   const profiles = [admin, ...managers];
 
-  // Core employees mapping to managers
-  const employees = [
+  // Base core employees
+  const coreEmployees = [
     { id: 'demo-emp-1', name: 'Harshi Singh', role: 'employee', status: 'active', designation: 'Senior Analyst', department: 'Operations', manager_id: 'demo-mgr-1' },
     { id: 'demo-emp-2', name: 'Rohan Das', role: 'employee', status: 'active', designation: 'Software Developer', department: 'Engineering', manager_id: 'demo-mgr-2' },
     { id: 'demo-emp-3', name: 'Priyanshu Sharma', role: 'employee', status: 'active', designation: 'UI Engineer', department: 'Engineering', manager_id: 'demo-mgr-2' },
@@ -91,26 +91,58 @@ const getMockDb = () => {
     { id: 'demo-emp-6', name: 'Tanya Goel', role: 'employee', status: 'active', designation: 'QA Analyst', department: 'Security', manager_id: 'demo-mgr-10' }
   ];
 
-  // Synthesize employees 7 to 100 under 10 managers
-  for (let i = 7; i <= 100; i++) {
-    const deptIdx = (i - 1) % departments.length;
-    const dept = departments[deptIdx];
-    const fName = firstNames[i % firstNames.length];
-    const lName = lastNames[i % lastNames.length];
-    const name = `${fName} ${lName}`;
-    const desIdx = i % dept.designations.length;
-    const designation = dept.designations[desIdx];
+  const employees = [];
+  let empIndex = 0;
 
-    employees.push({
-      id: `demo-emp-${i}`,
-      name,
-      role: 'employee',
-      status: 'active',
-      designation,
-      department: dept.name,
-      manager_id: dept.managerId
+  for (let mIdx = 0; mIdx < managers.length; mIdx++) {
+    const manager = managers[mIdx];
+    const dept = departments.find(d => d.name === manager.department) || departments[mIdx];
+    
+    // Find how many core employees are already assigned to this manager
+    const coreForManager = coreEmployees.filter(e => e.manager_id === manager.id);
+    
+    // Add the core employees first
+    coreForManager.forEach(core => {
+      employees.push({
+        ...core,
+        avatar: core.name.split(' ').map(n => n[0]).join('').toUpperCase()
+      });
     });
+    
+    // Fill up the rest of the 10 spots for this manager with synthesized employees
+    const spotsToFill = 10 - coreForManager.length;
+    for (let s = 0; s < spotsToFill; s++) {
+      let newEmpId;
+      do {
+        empIndex++;
+        newEmpId = `demo-emp-${empIndex}`;
+      } while (coreEmployees.some(e => e.id === newEmpId) || empIndex <= 6);
+      
+      const fName = firstNames[empIndex % firstNames.length];
+      const lName = lastNames[empIndex % lastNames.length];
+      const name = `${fName} ${lName}`;
+      const desIdx = empIndex % dept.designations.length;
+      const designation = dept.designations[desIdx];
+      
+      employees.push({
+        id: newEmpId,
+        name,
+        role: 'employee',
+        status: 'active',
+        designation,
+        department: manager.department,
+        manager_id: manager.id,
+        avatar: name.split(' ').map(n => n[0]).join('').toUpperCase()
+      });
+    }
   }
+
+  // Sort employees by their numerical ID to keep it consistent
+  employees.sort((a, b) => {
+    const aNum = parseInt(a.id.replace('demo-emp-', ''));
+    const bNum = parseInt(b.id.replace('demo-emp-', ''));
+    return aNum - bNum;
+  });
 
   profiles.push(...employees);
 

@@ -92,14 +92,15 @@ export function AuthProvider({ children }) {
   };
 
   const login = async (email, password) => {
+    const mockUser = MOCK_PROFILES[email];
+    if (mockUser && password === 'demo123') {
+      setCurrentUser(mockUser);
+      localStorage.setItem('performx_demo_user', JSON.stringify(mockUser));
+      setIsDemoMode(true);
+      return { user: mockUser };
+    }
+
     if (isDemoMode || !supabase) {
-      // Mock Login Logic
-      const mockUser = MOCK_PROFILES[email];
-      if (mockUser && password === 'demo123') {
-        setCurrentUser(mockUser);
-        localStorage.setItem('performx_demo_user', JSON.stringify(mockUser));
-        return { user: mockUser };
-      }
       throw new Error('Invalid credentials or Demo Mode error');
     }
 
@@ -113,10 +114,10 @@ export function AuthProvider({ children }) {
       return data;
     } catch (err) {
       console.warn('Supabase auth failed. Attempting Mock Profile fallback:', err.message);
-      const mockUser = MOCK_PROFILES[email];
       if (mockUser && password === 'demo123') {
         setCurrentUser(mockUser);
         localStorage.setItem('performx_demo_user', JSON.stringify(mockUser));
+        setIsDemoMode(true);
         return { user: mockUser };
       }
       throw err;
@@ -133,6 +134,7 @@ export function AuthProvider({ children }) {
       }
     }
     setCurrentUser(null);
+    setIsDemoMode(false);
   };
 
   const switchRole = (role) => {
@@ -146,6 +148,7 @@ export function AuthProvider({ children }) {
     if (mockUser) {
       setCurrentUser(mockUser);
       localStorage.setItem('performx_demo_user', JSON.stringify(mockUser));
+      setIsDemoMode(true);
     }
   };
 
