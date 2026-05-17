@@ -15,7 +15,7 @@ It provides secure workflows, real-time validations, quarterly performance track
 # 🚀 Live Demo
 
 ### 🌐 Live Website
-https://goal-setting-portal.vercel.app/
+https://goal-setting-portal.vercel.app
 
 ### 💻 GitHub Repository
 https://github.com/priyanshu-130/Goal-Setting-Portal
