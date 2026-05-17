@@ -201,12 +201,24 @@ export default function GoalSheet() {
   };
 
   const addGoal = () => {
-    if (goals.length >= MAX_GOALS) {
-      showToast('Limit Reached', `Maximum capacity of ${MAX_GOALS} goals reached.`, 'warning');
-      return;
-    }
     if (isSheetLocked) {
       showToast('Action Blocked', 'Your goal sheet is submitted or approved and cannot be modified.', 'error');
+      return;
+    }
+    
+    // Check if total weightage is already full (100% or more)
+    const currentTotalWeight = goals.reduce((sum, g) => sum + (Number(g.weightage) || 0), 0);
+    if (currentTotalWeight >= 100) {
+      showToast(
+        'Weightage is Full', 
+        `Your goal weightage is already at ${currentTotalWeight}%. Reduce weightage of existing goals to add extra ones.`, 
+        'warning'
+      );
+      return;
+    }
+
+    if (goals.length >= MAX_GOALS) {
+      showToast('Limit Reached', `Maximum capacity of ${MAX_GOALS} goals reached.`, 'warning');
       return;
     }
     setGoals((prev) => [...prev, emptyGoal(currentUser.id)]);

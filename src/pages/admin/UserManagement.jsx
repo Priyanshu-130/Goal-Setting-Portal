@@ -238,54 +238,54 @@ export default function UserManagement() {
       {/* Add User Modal */}
       <AnimatePresence>
         {showAddModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xl">
+          <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-black/60 backdrop-blur-md overflow-y-auto pt-2 sm:pt-4">
             <motion.div 
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white/95 backdrop-blur-2xl border border-slate-200 rounded-3xl shadow-2xl w-full max-w-lg p-8 relative overflow-hidden"
+              className="bg-white border border-slate-200 rounded-3xl shadow-2xl w-full max-w-lg p-6 relative overflow-hidden my-2"
             >
-              <div className="absolute top-0 right-0 -mt-16 -mr-16 w-48 h-48 bg-primary-500/20 rounded-full blur-[40px]" />
-              <div className="flex items-center justify-between mb-8 relative z-10">
-                <h3 className="text-xl font-bold text-slate-900 flex items-center gap-3">
+              <div className="absolute top-0 right-0 -mt-16 -mr-16 w-48 h-48 bg-primary-500/10 rounded-full blur-[40px]" />
+              <div className="flex items-center justify-between mb-5 relative z-10">
+                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2.5">
                   <div className="glow-dot text-[#b388ff]" /> Add New User
                 </h3>
                 <button onClick={() => setShowAddModal(false)} className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-500 transition-colors">
                   <X className="h-5 w-5" />
                 </button>
               </div>
-              <div className="space-y-5 relative z-10">
+              <div className="space-y-4 relative z-10 text-slate-700">
                 <div>
-                  <label className="label">Full Name</label>
-                  <input className="input" placeholder="e.g. Sarah Connor" value={newUser.name} onChange={e => setNewUser(u => ({ ...u, name: e.target.value }))} />
+                  <label className="label text-xs font-bold text-slate-500 mb-1 block">Full Name</label>
+                  <input className="input py-2 px-3 text-sm rounded-xl border-slate-200 focus:ring-primary-500 w-full" placeholder="e.g. Sarah Connor" value={newUser.name} onChange={e => setNewUser(u => ({ ...u, name: e.target.value }))} />
                 </div>
                 <div>
-                  <label className="label">Email Address</label>
-                  <input className="input" type="email" placeholder="sarah.connor@example.com" value={newUser.email} onChange={e => setNewUser(u => ({ ...u, email: e.target.value }))} />
+                  <label className="label text-xs font-bold text-slate-500 mb-1 block">Email Address</label>
+                  <input className="input py-2 px-3 text-sm rounded-xl border-slate-200 focus:ring-primary-500 w-full" type="email" placeholder="sarah.connor@example.com" value={newUser.email} onChange={e => setNewUser(u => ({ ...u, email: e.target.value }))} />
                 </div>
-                <div className="grid grid-cols-2 gap-5">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="label">System Role</label>
-                    <select className="input" value={newUser.role} onChange={e => setNewUser(u => ({ ...u, role: e.target.value }))}>
+                    <label className="label text-xs font-bold text-slate-500 mb-1 block">System Role</label>
+                    <select className="input py-2 px-3 text-sm rounded-xl border-slate-200 focus:ring-primary-500 w-full" value={newUser.role} onChange={e => setNewUser(u => ({ ...u, role: e.target.value }))}>
                       <option value="employee">Employee</option>
                       <option value="manager">Manager</option>
                       <option value="admin">Admin</option>
                     </select>
                   </div>
                   <div>
-                    <label className="label">Department</label>
-                    <input className="input" placeholder="e.g. Engineering" value={newUser.department} onChange={e => setNewUser(u => ({ ...u, department: e.target.value }))} />
+                    <label className="label text-xs font-bold text-slate-500 mb-1 block">Department</label>
+                    <input className="input py-2 px-3 text-sm rounded-xl border-slate-200 focus:ring-primary-500 w-full" placeholder="e.g. Engineering" value={newUser.department} onChange={e => setNewUser(u => ({ ...u, department: e.target.value }))} />
                   </div>
                 </div>
                 <div>
-                  <label className="label">Designation / Title</label>
-                  <input className="input" placeholder="e.g. Senior Developer" value={newUser.designation} onChange={e => setNewUser(u => ({ ...u, designation: e.target.value }))} />
+                  <label className="label text-xs font-bold text-slate-500 mb-1 block">Designation / Title</label>
+                  <input className="input py-2 px-3 text-sm rounded-xl border-slate-200 focus:ring-primary-500 w-full" placeholder="e.g. Senior Developer" value={newUser.designation} onChange={e => setNewUser(u => ({ ...u, designation: e.target.value }))} />
                 </div>
               </div>
-              <div className="flex gap-4 mt-8 relative z-10">
-                <button onClick={() => setShowAddModal(false)} className="btn-secondary flex-1">Cancel</button>
-                <button id="confirm-add-user-btn" onClick={addUser} className="btn-primary flex-1 flex items-center justify-center gap-2">
-                  <Plus className="h-5 w-5" /> Create User
+              <div className="flex gap-4 mt-6 relative z-10">
+                <button onClick={() => setShowAddModal(false)} className="btn-secondary py-2.5 rounded-xl text-xs font-bold flex-1">Cancel</button>
+                <button id="confirm-add-user-btn" onClick={addUser} className="btn-primary py-2.5 rounded-xl text-xs font-bold flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-primary-600 to-[#b388ff] border-0 text-white shadow-md">
+                  <Plus className="h-4.5 w-4.5" /> Create User
                 </button>
               </div>
             </motion.div>

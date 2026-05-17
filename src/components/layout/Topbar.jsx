@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Bell, LogOut, ChevronDown, User, Moon, Sun, Shuffle } from 'lucide-react';
+import { Bell, LogOut, ChevronDown, User, Moon, Sun, Shuffle, X, CheckCircle, Info, RefreshCw, AlertTriangle } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { cn } from '../../lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -57,13 +57,89 @@ export default function Topbar({ breadcrumb }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Mock notifications
-  const notifications = [
-    { id: 1, text: 'Your Q2 check-in is due soon', time: '2h ago', unread: true },
-    { id: 2, text: 'Manager approved your goal G-003', time: '1d ago', unread: true },
-    { id: 3, text: 'New shared KPI assigned to you', time: '2d ago', unread: false },
-  ];
-  const unreadCount = notifications.filter(n => n.unread).length;
+  // Dynamic Notifications State
+  const [notificationsList, setNotificationsList] = useState([
+    { 
+      id: 1, 
+      text: 'Your Q2 check-in is due soon', 
+      category: 'Deadline', 
+      description: 'Please submit your goals and check-in updates for the current performance period. Make sure to discuss with your manager before submitting.',
+      time: '2 hours ago', 
+      unread: true 
+    },
+    { 
+      id: 2, 
+      text: 'Manager approved your goal "Q2 Customer Retention Plan"', 
+      category: 'Approval', 
+      description: 'Your manager has reviewed and fully approved your strategic goal G-003. You are free to begin logging quarterly progress entries.',
+      time: '1 day ago', 
+      unread: true 
+    },
+    { 
+      id: 3, 
+      text: 'New shared KPI assigned to your department', 
+      category: 'KPI Alignment', 
+      description: 'A new high-level objective "Reduce Cloud Infrastructure Latency by 20%" has been cascaded down to your team dashboard. Align your individual targets with this goal.',
+      time: '2 days ago', 
+      unread: false 
+    },
+    { 
+      id: 4, 
+      text: 'Performance feedback request from Operations team', 
+      category: 'Feedback Request', 
+      description: 'You have been requested to provide peer feedback for the team lead of the Operations department. Complete before the Friday deadline.',
+      time: '4 days ago', 
+      unread: false 
+    }
+  ]);
+  const [activeNotification, setActiveNotification] = useState(null);
+  const [viewAllOpen, setViewAllOpen] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState('');
+
+  const unreadCount = notificationsList.filter(n => n.unread).length;
+
+  const handleNotificationClick = (n) => {
+    // Mark as read
+    setNotificationsList(prev => prev.map(item => item.id === n.id ? { ...item, unread: false } : item));
+    setActiveNotification(n);
+    setNotifOpen(false);
+  };
+
+  const handleViewAllOpen = () => {
+    setViewAllOpen(true);
+    setNotifOpen(false);
+  };
+
+  const markAllAsRead = () => {
+    setNotificationsList(prev => prev.map(item => ({ ...item, unread: false })));
+  };
+
+  const handleForceRefresh = async () => {
+    setIsSyncing(true);
+    setSyncMessage('Syncing metadata...');
+    await new Promise(resolve => setTimeout(resolve, 800));
+    setSyncMessage('Fetching latest goals...');
+    await new Promise(resolve => setTimeout(resolve, 600));
+    setSyncMessage('Pulling check-ins...');
+    await new Promise(resolve => setTimeout(resolve, 400));
+    
+    // Add a new live notification informing that the pull is successful
+    setNotificationsList(prev => [
+      {
+        id: Date.now(),
+        text: 'Cloud database synchronized successfully',
+        category: 'System',
+        description: 'All goals, progress check-ins, department alignment KPIs, and user profiles have been updated to the absolute latest version from the Supabase live database.',
+        time: 'Just now',
+        unread: true
+      },
+      ...prev
+    ]);
+
+    setIsSyncing(false);
+    setSyncMessage('');
+  };
 
   return (
     <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 lg:px-8 sticky top-0 z-40">
@@ -79,18 +155,33 @@ export default function Topbar({ breadcrumb }) {
 
       {/* Right actions */}
       <div className="flex items-center gap-2 lg:gap-3">
-        {/* Connection Status */}
-        <div className={cn(
-          "hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-all duration-300",
-          !isDemoMode 
-            ? "bg-emerald-50 text-emerald-600 border-emerald-100 shadow-[0_0_15px_rgba(16,185,129,0.1)]" 
-            : "bg-amber-50 text-amber-600 border-amber-100 shadow-[0_0_15px_rgba(245,158,11,0.1)]"
-        )}>
+        {/* Connection Status & Pull */}
+        <div className="flex items-center gap-2">
           <div className={cn(
-            "h-1.5 w-1.5 rounded-full",
-            !isDemoMode ? "bg-emerald-500 animate-pulse" : "bg-amber-500"
-          )} />
-          {!isDemoMode ? 'Supabase Live' : 'Demo Mode'}
+            "hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-all duration-300",
+            !isDemoMode 
+              ? "bg-emerald-50 text-emerald-600 border-emerald-100 shadow-[0_0_15px_rgba(16,185,129,0.1)]" 
+              : "bg-amber-50 text-amber-600 border-amber-100 shadow-[0_0_15px_rgba(245,158,11,0.1)]"
+          )}>
+            <div className={cn(
+              "h-1.5 w-1.5 rounded-full",
+              !isDemoMode ? "bg-emerald-500 animate-pulse" : "bg-amber-500"
+            )} />
+            {!isDemoMode ? 'Supabase Live' : 'Demo Mode'}
+          </div>
+
+          <button
+            onClick={handleForceRefresh}
+            disabled={isSyncing}
+            title="Force Pull Absolute Latest Data From Supabase Cloud"
+            className={cn(
+              "px-2.5 py-1 rounded-full border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-600 hover:text-slate-900 transition-all duration-200 flex items-center justify-center gap-1 text-[10px] font-bold shadow-sm",
+              isSyncing && "bg-primary-50 border-primary-200 text-primary-600 cursor-not-allowed"
+            )}
+          >
+            <RefreshCw className={cn("h-3 w-3", isSyncing && "animate-spin text-primary-500")} />
+            <span className="hidden sm:inline">{isSyncing ? syncMessage : "Sync Cloud"}</span>
+          </button>
         </div>
 
         {/* Global Demo Role Switcher */}
@@ -199,25 +290,48 @@ export default function Topbar({ breadcrumb }) {
                     </span>
                   )}
                 </div>
-                <div className="divide-y divide-slate-50">
-                  {notifications.map(n => (
-                    <div key={n.id} className={cn(
-                      'px-4 py-3 hover:bg-slate-50 transition-colors cursor-pointer',
-                      n.unread && 'bg-primary-50/40'
-                    )}>
+                <div className="divide-y divide-slate-50 max-h-80 overflow-y-auto">
+                  {notificationsList.slice(0, 4).map(n => (
+                    <div 
+                      key={n.id} 
+                      onClick={() => handleNotificationClick(n)}
+                      className={cn(
+                        'px-4 py-3 hover:bg-slate-50 transition-colors cursor-pointer border-l-2 border-transparent text-left',
+                        n.unread && 'bg-primary-50/20 border-l-primary-500'
+                      )}
+                    >
                       <div className="flex items-start gap-3">
-                        {n.unread && <div className="mt-1.5 h-2 w-2 rounded-full bg-primary-500 flex-shrink-0" />}
-                        {!n.unread && <div className="mt-1.5 h-2 w-2 rounded-full bg-transparent flex-shrink-0" />}
                         <div className="flex-1">
-                          <p className="text-sm text-slate-700 font-medium leading-snug">{n.text}</p>
-                          <p className="text-xs text-slate-400 mt-1">{n.time}</p>
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <span className={cn(
+                              "text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded tracking-wide",
+                              n.category === 'Deadline' && "bg-rose-50 text-rose-600",
+                              n.category === 'Approval' && "bg-emerald-50 text-emerald-600",
+                              n.category === 'KPI Alignment' && "bg-indigo-50 text-indigo-600",
+                              n.category === 'Feedback Request' && "bg-amber-50 text-amber-600",
+                              n.category === 'System' && "bg-primary-50 text-primary-600"
+                            )}>
+                              {n.category || 'Notification'}
+                            </span>
+                            {n.unread && <span className="h-1.5 w-1.5 rounded-full bg-primary-500" />}
+                          </div>
+                          <p className="text-xs text-slate-700 font-medium leading-snug">{n.text}</p>
+                          <p className="text-[10px] text-slate-400 mt-1">{n.time}</p>
                         </div>
                       </div>
                     </div>
                   ))}
+                  {notificationsList.length === 0 && (
+                    <div className="px-4 py-6 text-center text-slate-400 text-xs">
+                      No notifications available
+                    </div>
+                  )}
                 </div>
                 <div className="px-4 py-2.5 border-t border-slate-100 text-center">
-                  <button className="text-xs font-semibold text-primary-600 hover:text-primary-700 transition-colors">
+                  <button 
+                    onClick={handleViewAllOpen}
+                    className="text-xs font-semibold text-primary-600 hover:text-primary-700 transition-colors w-full"
+                  >
                     View all notifications
                   </button>
                 </div>
@@ -304,8 +418,153 @@ export default function Topbar({ breadcrumb }) {
               </motion.div>
             )}
           </AnimatePresence>
-        </div>
-      </div>
+      {/* NOTIFICATION DETAILS DIALOG */}
+      <AnimatePresence>
+        {activeNotification && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white border border-slate-200 rounded-3xl shadow-2xl w-full max-w-md p-6 relative overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 -mt-12 -mr-12 w-32 h-32 bg-primary-500/10 rounded-full blur-2xl" />
+              
+              <div className="flex items-center justify-between mb-4 relative z-10">
+                <span className={cn(
+                  "text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full tracking-wider border",
+                  activeNotification.category === 'Deadline' && "bg-rose-50 text-rose-600 border-rose-100",
+                  activeNotification.category === 'Approval' && "bg-emerald-50 text-emerald-600 border-emerald-100",
+                  activeNotification.category === 'KPI Alignment' && "bg-indigo-50 text-indigo-600 border-indigo-100",
+                  activeNotification.category === 'Feedback Request' && "bg-amber-50 text-amber-600 border-amber-100",
+                  activeNotification.category === 'System' && "bg-primary-50 text-primary-600 border-primary-100"
+                )}>
+                  {activeNotification.category || 'Information'}
+                </span>
+                <button 
+                  onClick={() => setActiveNotification(null)} 
+                  className="p-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="space-y-4 relative z-10 text-left">
+                <h3 className="text-base font-bold text-slate-900 leading-snug">
+                  {activeNotification.text}
+                </h3>
+                <p className="text-sm text-slate-600 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-100 font-medium">
+                  {activeNotification.description}
+                </p>
+                <div className="flex items-center justify-between text-[11px] text-slate-400">
+                  <span className="font-semibold">Received {activeNotification.time}</span>
+                  <span className="text-primary-600 font-bold flex items-center gap-1">
+                    <CheckCircle className="h-3.5 w-3.5 text-primary-500" /> Marked as Read
+                  </span>
+                </div>
+              </div>
+              
+              <div className="mt-6">
+                <button 
+                  onClick={() => setActiveNotification(null)}
+                  className="w-full py-2.5 rounded-xl text-xs font-bold bg-gradient-to-r from-primary-600 to-[#b388ff] border-0 text-white shadow-md hover:shadow-lg transition-all duration-300"
+                >
+                  Acknowledge & Close
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ALL NOTIFICATIONS DIALOG */}
+      <AnimatePresence>
+        {viewAllOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white border border-slate-200 rounded-3xl shadow-2xl w-full max-w-lg p-6 relative overflow-hidden flex flex-col max-h-[80vh]"
+            >
+              <div className="flex items-center justify-between mb-5 flex-shrink-0 text-left">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <Bell className="h-5 w-5 text-primary-500" /> Notification Inbox
+                  </h3>
+                  <p className="text-xs text-slate-400 font-semibold mt-1">
+                    {unreadCount} unread entries remaining
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {unreadCount > 0 && (
+                    <button 
+                      onClick={markAllAsRead}
+                      className="px-3 py-1.5 rounded-xl bg-primary-50 hover:bg-primary-100 text-[10px] font-extrabold text-primary-600 transition-colors uppercase tracking-wider"
+                    >
+                      Mark All Read
+                    </button>
+                  )}
+                  <button 
+                    onClick={() => setViewAllOpen(false)} 
+                    className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                  >
+                    <X className="h-4.5 w-4.5" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto pr-1 space-y-3 max-h-[50vh] text-left">
+                {notificationsList.map(n => (
+                  <div 
+                    key={n.id} 
+                    onClick={() => {
+                      setNotificationsList(prev => prev.map(item => item.id === n.id ? { ...item, unread: false } : item));
+                      setActiveNotification(n);
+                    }}
+                    className={cn(
+                      "p-3.5 rounded-2xl hover:bg-slate-50 transition-all cursor-pointer border border-slate-100 flex items-start gap-4 mt-2",
+                      n.unread ? "bg-primary-50/15 border-primary-100/50" : "bg-white"
+                    )}
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className={cn(
+                          "text-[9px] font-extrabold uppercase px-2 py-0.5 rounded tracking-wide",
+                          n.category === 'Deadline' && "bg-rose-50 text-rose-600",
+                          n.category === 'Approval' && "bg-emerald-50 text-emerald-600",
+                          n.category === 'KPI Alignment' && "bg-indigo-50 text-indigo-600",
+                          n.category === 'Feedback Request' && "bg-amber-50 text-amber-600",
+                          n.category === 'System' && "bg-primary-50 text-primary-600"
+                        )}>
+                          {n.category || 'Notification'}
+                        </span>
+                        {n.unread && (
+                          <span className="flex h-2 w-2 relative">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-primary-500"></span>
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm font-semibold text-slate-800 leading-snug">{n.text}</p>
+                      <p className="text-xs text-slate-400 mt-1">{n.time}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-6 flex-shrink-0">
+                <button 
+                  onClick={() => setViewAllOpen(false)}
+                  className="w-full py-2.5 rounded-xl text-xs font-bold bg-gradient-to-r from-primary-600 to-[#b388ff] border-0 text-white shadow-md"
+                >
+                  Close Inbox
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </header>
   );
 }

@@ -137,6 +137,47 @@ export function AuthProvider({ children }) {
     setIsDemoMode(false);
   };
 
+  const signUp = async (email, password, name, role, department, designation) => {
+    if (!supabase) throw new Error('Supabase is not configured');
+    
+    // 1. Sign up the user in Supabase Auth
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          name,
+          role,
+          department,
+          designation
+        }
+      }
+    });
+
+    if (error) throw error;
+    if (!data?.user) throw new Error('Signup failed');
+
+    // 2. Create the profile row in public.profiles
+    const initials = name.split(' ').map(n => n[0]).join('').toUpperCase();
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .insert({
+        id: data.user.id,
+        name,
+        email,
+        role,
+        department,
+        designation,
+        avatar_url: initials
+      });
+
+    if (profileError) {
+      console.warn('Profile creation returned warning (may exist):', profileError.message);
+    }
+
+    return data;
+  };
+
   const switchRole = (role) => {
     const roleToEmail = {
       employee: 'harshi@demo.com',
@@ -155,6 +196,7 @@ export function AuthProvider({ children }) {
   const value = { 
     currentUser, 
     login, 
+    signUp,
     logout, 
     loading, 
     isDemoMode,

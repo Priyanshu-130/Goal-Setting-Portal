@@ -137,11 +137,14 @@ const resolveActorDetails = (actorName) => {
 export default function AuditFeed({ limit = 6, standalone = false }) {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const activeLimit = isExpanded ? 20 : limit;
 
   useEffect(() => {
     async function loadLogs() {
       try {
-        const data = await auditService.getRecentLogs(limit);
+        const data = await auditService.getRecentLogs(activeLimit);
         setLogs(data || []);
       } catch (err) {
         console.error('Failed to load audit logs:', err);
@@ -154,7 +157,7 @@ export default function AuditFeed({ limit = 6, standalone = false }) {
     // Small polling intervals or intervals for demo purposes to simulate E2E real-time
     const interval = setInterval(loadLogs, 4000);
     return () => clearInterval(interval);
-  }, [limit]);
+  }, [activeLimit]);
 
   const listContainerVariants = {
     hidden: { opacity: 0 },
@@ -172,89 +175,116 @@ export default function AuditFeed({ limit = 6, standalone = false }) {
   };
 
   const content = (
-    <div className="relative">
-      {/* Sidebar Timeline Track Line */}
-      {logs.length > 1 && (
-        <div className="absolute left-[22px] top-6 bottom-6 w-0.5 bg-gradient-to-b from-orange-400/30 via-orange-300/10 to-transparent" />
-      )}
+    <div className="relative pb-10">
+      <motion.div
+        animate={{ height: isExpanded ? 'auto' : '340px' }}
+        transition={{ type: 'spring', stiffness: 220, damping: 26 }}
+        className={cn(
+          "relative overflow-hidden transition-all duration-300",
+          !isExpanded ? "max-h-[340px]" : "max-h-[1400px]"
+        )}
+      >
+        {/* Sidebar Timeline Track Line */}
+        {logs.length > 1 && (
+          <div className="absolute left-[22px] top-6 bottom-6 w-0.5 bg-gradient-to-b from-orange-400/30 via-orange-300/10 to-transparent" />
+        )}
 
-      {loading ? (
-        <div className="flex flex-col items-center justify-center py-16 gap-3">
-          <Loader2 className="h-7 w-7 text-primary-600 animate-spin" />
-          <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Syncing activity logs...</p>
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-16 gap-3">
+            <Loader2 className="h-7 w-7 text-primary-600 animate-spin" />
+            <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Syncing activity logs...</p>
+          </div>
+        ) : (
+          <motion.div
+            variants={listContainerVariants}
+            initial="hidden"
+            animate="show"
+            className="space-y-5 pb-12"
+          >
+            {logs.map((log) => {
+              const actor = resolveActorDetails(log.actor);
+              const cfg = ACTION_CONFIG[log.action] || {
+                icon: Activity,
+                color: 'text-slate-500',
+                bgColor: 'bg-slate-500/10 border-slate-500/20',
+                badgeText: log.action ? log.action.replace('_', ' ') : 'Activity'
+              };
+              const ActionIcon = cfg.icon;
+
+              return (
+                <motion.div
+                  key={log.id}
+                  variants={itemVariants}
+                  className="flex gap-4 relative group"
+                >
+                  {/* Node Dot / Action Icon */}
+                  <div className="relative z-10 flex-shrink-0 flex items-center justify-center w-11 h-11 rounded-2xl bg-white border border-slate-200/80 shadow-md group-hover:shadow-lg group-hover:border-primary-500/30 transition-all duration-300">
+                    <div className={cn('p-2 rounded-xl border', cfg.bgColor)}>
+                      <ActionIcon className={cn('h-4.5 w-4.5', cfg.color)} />
+                    </div>
+                  </div>
+
+                  {/* Timeline Glass Card */}
+                  <div className="flex-1 card p-4 bg-white/70 border border-slate-200/80 backdrop-blur-md hover:bg-white/90 hover:border-primary-500/20 transition-all duration-300 hover:shadow-xl hover:-translate-y-0.5 flex flex-col sm:flex-row items-start gap-4">
+                    {/* Actor Avatar */}
+                    <div className={cn('w-10 h-10 rounded-2xl flex items-center justify-center font-bold text-xs shadow-md border border-white/20 select-none flex-shrink-0', actor.avatarBg)}>
+                      {actor.avatar}
+                    </div>
+
+                    {/* Log details */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                        <span className="text-sm font-extrabold text-slate-800 tracking-tight leading-none">
+                          {actor.name}
+                        </span>
+                        <span className={cn('text-[9px] font-bold px-2 py-0.5 rounded-full border uppercase tracking-wider', actor.roleColor)}>
+                          {actor.role}
+                        </span>
+                        <span className={cn('text-[9px] font-bold px-2 py-0.5 rounded-full border uppercase tracking-wider', cfg.bgColor, cfg.color)}>
+                          {cfg.badgeText}
+                        </span>
+                      </div>
+
+                      <p className="text-xs font-semibold text-slate-600 leading-relaxed break-words">
+                        {log.details}
+                      </p>
+
+                      <div className="flex items-center gap-1.5 mt-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        <span>{timeAgo(log.timestamp)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+
+            {logs.length === 0 && (
+              <div className="text-center py-12 border-2 border-dashed border-slate-200 rounded-3xl p-6 bg-slate-50/50">
+                <Activity className="h-8 w-8 text-slate-300 mx-auto mb-3" />
+                <p className="text-sm font-bold text-slate-500">No activity recorded yet.</p>
+                <p className="text-xs text-slate-400 mt-1">Actions taken across goals and check-ins will live here.</p>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </motion.div>
+
+      {/* Fade overlay / Toggle Button */}
+      {!loading && logs.length >= limit && (
+        <div className={cn(
+          "absolute bottom-0 left-0 right-0 flex justify-center z-20",
+          !isExpanded 
+            ? "bg-gradient-to-t from-white via-white/80 to-transparent h-28 pt-16" 
+            : "bg-transparent h-12 pt-2"
+        )}>
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="px-5 py-2.5 rounded-full border border-slate-200 bg-white/95 backdrop-blur-md shadow-md text-[10px] font-bold text-slate-600 uppercase tracking-widest hover:text-orange-500 hover:border-orange-500/30 hover:shadow-lg transition-all duration-200 flex items-center gap-2 group z-30"
+          >
+            <Activity className={cn("h-3 w-3 text-orange-500", !isExpanded && "animate-bounce")} />
+            {isExpanded ? 'Collapse Activity Feed' : 'Slide Down / Expand Feed'}
+          </button>
         </div>
-      ) : (
-        <motion.div
-          variants={listContainerVariants}
-          initial="hidden"
-          animate="show"
-          className="space-y-5"
-        >
-          {logs.map((log) => {
-            const actor = resolveActorDetails(log.actor);
-            const cfg = ACTION_CONFIG[log.action] || {
-              icon: Activity,
-              color: 'text-slate-500',
-              bgColor: 'bg-slate-500/10 border-slate-500/20',
-              badgeText: log.action ? log.action.replace('_', ' ') : 'Activity'
-            };
-            const ActionIcon = cfg.icon;
-
-            return (
-              <motion.div
-                key={log.id}
-                variants={itemVariants}
-                className="flex gap-4 relative group"
-              >
-                {/* Node Dot / Action Icon */}
-                <div className="relative z-10 flex-shrink-0 flex items-center justify-center w-11 h-11 rounded-2xl bg-white border border-slate-200/80 shadow-md group-hover:shadow-lg group-hover:border-primary-500/30 transition-all duration-300">
-                  <div className={cn('p-2 rounded-xl border', cfg.bgColor)}>
-                    <ActionIcon className={cn('h-4.5 w-4.5', cfg.color)} />
-                  </div>
-                </div>
-
-                {/* Timeline Glass Card */}
-                <div className="flex-1 card p-4 bg-white/70 border border-slate-200/80 backdrop-blur-md hover:bg-white/90 hover:border-primary-500/20 transition-all duration-300 hover:shadow-xl hover:-translate-y-0.5 flex flex-col sm:flex-row items-start gap-4">
-                  {/* Actor Avatar */}
-                  <div className={cn('w-10 h-10 rounded-2xl flex items-center justify-center font-bold text-xs shadow-md border border-white/20 select-none flex-shrink-0', actor.avatarBg)}>
-                    {actor.avatar}
-                  </div>
-
-                  {/* Log details */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                      <span className="text-sm font-extrabold text-slate-800 tracking-tight leading-none">
-                        {actor.name}
-                      </span>
-                      <span className={cn('text-[9px] font-bold px-2 py-0.5 rounded-full border uppercase tracking-wider', actor.roleColor)}>
-                        {actor.role}
-                      </span>
-                      <span className={cn('text-[9px] font-bold px-2 py-0.5 rounded-full border uppercase tracking-wider', cfg.bgColor, cfg.color)}>
-                        {cfg.badgeText}
-                      </span>
-                    </div>
-
-                    <p className="text-xs font-semibold text-slate-600 leading-relaxed break-words">
-                      {log.details}
-                    </p>
-
-                    <div className="flex items-center gap-1.5 mt-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                      <span>{timeAgo(log.timestamp)}</span>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            );
-          })}
-
-          {logs.length === 0 && (
-            <div className="text-center py-12 border-2 border-dashed border-slate-200 rounded-3xl p-6 bg-slate-50/50">
-              <Activity className="h-8 w-8 text-slate-300 mx-auto mb-3" />
-              <p className="text-sm font-bold text-slate-500">No activity recorded yet.</p>
-              <p className="text-xs text-slate-400 mt-1">Actions taken across goals and check-ins will live here.</p>
-            </div>
-          )}
-        </motion.div>
       )}
     </div>
   );
