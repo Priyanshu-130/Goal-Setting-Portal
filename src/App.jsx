@@ -25,7 +25,7 @@ import Settings from './pages/Settings';
 
 function ProtectedRoute({ children, allowedRoles }) {
   const { currentUser, loading } = useAuth();
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-dark-900"><div className="h-8 w-8 border-2 border-primary-400 border-t-transparent rounded-full animate-spin" /></div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#fafafa]"><div className="h-8 w-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" /></div>;
   if (!currentUser) return <Navigate to="/login" replace />;
   if (allowedRoles && !allowedRoles.includes(currentUser.role)) {
     const redirect = { employee: '/employee', manager: '/manager', admin: '/admin' }[currentUser.role] || '/login';
